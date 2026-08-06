@@ -6,22 +6,22 @@ async function main() {
   const password = await hashPassword('password123');
 
   const admin = await prisma.user.upsert({
-    where: { email: 'admin@edutest.uz' },
+    where: { email: 'admin@gmail.com' },
     update: {},
     create: {
       fullName: 'Administrator',
-      email: 'admin@edutest.uz',
+      email: 'admin@gmail.com',
       password,
       role: USER_ROLE.ADMIN,
     },
   });
 
   const teacher = await prisma.user.upsert({
-    where: { email: 'malika@edutest.uz' },
+    where: { email: 'malika@gmail.com' },
     update: {},
     create: {
       fullName: 'Malika Abduvaliyeva',
-      email: 'malika@edutest.uz',
+      email: 'malika@gmail.com',
       password,
       role: USER_ROLE.TEACHER,
       subject: 'Matematika',
@@ -117,7 +117,6 @@ async function main() {
     });
   }
 
-  // A couple of finished attempts so the demo teacher's dashboard isn't empty on first login.
   const mathTest = await prisma.tests.findFirst({ where: { name: 'Matematika test 1' }, include: { questions: true } });
   const physicsTest = await prisma.tests.findFirst({ where: { name: 'Fizika test 2' }, include: { questions: true } });
 
