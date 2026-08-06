@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "ts-node": {
+    "transpileOnly": true,
+    "require": [
+      "tsconfig-paths/register"
+    ]
+  },
+  "compilerOptions": {
+    "rootDir": "./",
+    "strict": true,
+    "strictNullChecks": true,
+    "target": "es2017",
+    "lib": [
+      "es2017",
+      "esnext.asynciterable",
+      "ES2021.String"
+    ],
+    "typeRoots": [
+      "node_modules/@types"
+    ],
+    "allowSyntheticDefaultImports": true,
+    "skipLibCheck": true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "forceConsistentCasingInFileNames": true,
+    "moduleResolution": "node",
+    "module": "commonjs",
+    "pretty": true,
+    "sourceMap": true,
+    "declaration": true,
+    "outDir": "./dist",
+    "allowJs": true,
+    "noEmit": false,
+    "noImplicitAny": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "importHelpers": true,
+    "baseUrl": "./",
+    "paths": {
+      "@/*": [
+        "*"
+      ],
+      "@config/*": [
+        "config/*"
+      ],
+      "@controllers/*": [
+        "controllers/*"
+      ],
+      "@dtos/*": [
+        "dtos/*"
+      ],
+      "@exceptions/*": [
+        "exceptions/*"
+      ],
+      "@interfaces/*": [
+        "interfaces/*"
+      ],
+      "@middlewares/*": [
+        "middlewares/*"
+      ],
+      "@services/*": [
+        "services/*"
+      ],
+      "@utils/*": [
+        "utils/*"
+      ],
+      "@modules/*": [
+        "modules/*"
+      ],
+    }
+  },
+  "include": [
+    "**/*.ts",
+    "**/*.json",
+    ".env",
+    "server.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    // Build output re-declares the globals from modules/declarations.ts, which
+    // would collide with the sources once `yarn build` has run.
+    "dist"
+  ]
+}
