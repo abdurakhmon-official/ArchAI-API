@@ -1,0 +1,126 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+generator zod {
+  provider                  = "zod-prisma-types"
+  output                    = "../generated/zod"
+  createRelationValuesTypes = "true"
+  useMultipleFiles          = "true"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String         @id @default(cuid())
+  fullName    String
+  email       String         @unique
+  password    String
+  role        USER_ROLE      @default(USER)
+  subject     String?
+  school_name String?
+  region      String?
+  district    String?
+  phone       String?
+  avatar      String?
+  active      Boolean        @default(true)
+  created_at  DateTime       @default(now())
+  updated_at  DateTime       @updatedAt
+  attempts    TestAttempts[]
+
+  @@index([email])
+  @@map("users")
+}
+
+model Subject {
+  id         String   @id @default(cuid())
+  name       String   @unique
+  created_at DateTime @default(now())
+
+  @@map("subjects")
+}
+
+model Tests {
+  id               String         @id @default(cuid())
+  name             String
+  description      String?
+  subject          String?
+  duration_minutes Int            @default(30)
+  active           Boolean        @default(true)
+  created_at       DateTime       @default(now())
+  updated_at       DateTime       @updatedAt
+  questions        Questions[]
+  attempts         TestAttempts[]
+
+  @@index([subject])
+  @@map("tests")
+}
+
+model Questions {
+  id             String           @id @default(cuid())
+  test_id        String
+  text           String
+  option_a       String
+  option_b       String
+  option_c       String
+  option_d       String
+  correct_option TEST_OPTION
+  order          Int              @default(0)
+  created_at     DateTime         @default(now())
+  test           Tests            @relation(fields: [test_id], references: [id], onDelete: Cascade)
+  answers        AttemptAnswers[]
+
+  @@index([test_id])
+  @@map("questions")
+}
+
+model TestAttempts {
+  id               String           @id @default(cuid())
+  user_id          String
+  test_id          String
+  total_questions  Int
+  correct_count    Int
+  incorrect_count  Int
+  score            Int
+  percent          Float
+  duration_seconds Int?
+  created_at       DateTime         @default(now())
+  user             User             @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  test             Tests            @relation(fields: [test_id], references: [id], onDelete: Cascade)
+  answers          AttemptAnswers[]
+
+  @@index([user_id])
+  @@index([test_id])
+  @@map("test_attempts")
+}
+
+model AttemptAnswers {
+  id              String       @id @default(cuid())
+  attempt_id      String
+  question_id     String
+  selected_option TEST_OPTION?
+  is_correct      Boolean
+  attempt         TestAttempts @relation(fields: [attempt_id], references: [id], onDelete: Cascade)
+  question        Questions    @relation(fields: [question_id], references: [id], onDelete: Cascade)
+
+  @@index([attempt_id])
+  @@index([question_id])
+  @@map("attempt_answers")
+}
+
+enum USER_ROLE {
+  ADMIN
+  TEACHER
+  USER
+}
+
+enum TEST_OPTION {
+  A
+  B
+  C
+  D
+}
