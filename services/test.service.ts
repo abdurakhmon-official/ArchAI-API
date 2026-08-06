@@ -35,8 +35,6 @@ export class TestService {
       where.subject = subject.trim();
     }
 
-    // Batch form: the page and its total are two reads, so they are sent
-    // together without holding a transaction open for the duration.
     const [tests, count] = await prisma.$transaction([
       prisma.tests.findMany({
         where,
@@ -73,7 +71,6 @@ export class TestService {
             option_c: true,
             option_d: true,
             order: true,
-            // Hidden from teachers so a test can't be solved by reading the API response.
             correct_option: !!this.user?.isAdmin,
           },
         },
@@ -129,8 +126,6 @@ export class TestService {
       });
 
       if (data.questions) {
-        // Attempts already reference the old rows by id, so the set is
-        // replaced wholesale rather than diffed field by field.
         await tx.questions.deleteMany({ where: { test_id: id } });
         await tx.questions.createMany({
           data: data.questions.map((question, index) => ({ ...question, test_id: id, order: index })),
