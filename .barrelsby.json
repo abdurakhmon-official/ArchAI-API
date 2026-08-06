@@ -1,0 +1,5 @@
+{
+  "directory": ["./controllers", "./inputs", "./outputs", "./generated/zod/modelSchema"],
+  "exclude": ["__mock__", "__mocks__", ".spec.ts", "sequelize.ts"],
+  "delete": true
+}
