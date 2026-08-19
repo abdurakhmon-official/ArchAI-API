@@ -2,7 +2,9 @@ import prisma from '@/modules/db';
 import { PlatformContext } from '@tsed/common';
 import { Injectable, InjectContext } from '@tsed/di';
 import { Request } from 'express';
-import { USER_ROLE } from '@/generated/prisma';
+import { PAYMENT_STATUS, SUBSCRIPTION_STATUS } from '../generated/prisma';
+
+const RECENT_LIMIT = 5;
 
 @Injectable()
 export class DashboardService {
@@ -19,44 +21,68 @@ export class DashboardService {
 
   async stats() {
     const userId = this.user!.id;
-    const subject = this.user?.role === USER_ROLE.TEACHER ? this.user?.subject : null;
 
-    const [totalTests, myAttempts, bestAttempt, recentAttempts] = await prisma.$transaction([
-      prisma.tests.count({ where: { active: true, ...(subject ? { subject } : {}) } }),
-      prisma.testAttempts.findMany({ where: { user_id: userId }, select: { percent: true } }),
-      prisma.testAttempts.findFirst({
-        where: { user_id: userId },
-        orderBy: { percent: 'desc' },
-        select: { percent: true },
-      }),
-      prisma.testAttempts.findMany({
-        where: { user_id: userId },
-        take: 5,
+    const [projectCount, subscription, recentProjects] = await prisma.$transaction([
+      prisma.project.count({ where: { user_id: userId, deleted_at: null } }),
+      prisma.subscription.findFirst({
+        where: { user_id: userId, status: SUBSCRIPTION_STATUS.ACTIVE },
+        include: { plan: true },
         orderBy: { created_at: 'desc' },
+      }),
+      prisma.project.findMany({
+        where: { user_id: userId, deleted_at: null },
+        take: RECENT_LIMIT,
+        orderBy: { updated_at: 'desc' },
         select: {
           id: true,
-          percent: true,
-          score: true,
-          total_questions: true,
-          created_at: true,
-          test: { select: { id: true, name: true, subject: true } },
+          title: true,
+          cover_svg: true,
+          estimate_total: true,
+          updated_at: true,
+          style: { select: { slug: true, name: true } },
         },
       }),
     ]);
 
-    const completedTests = myAttempts.length;
-    const averageScore = completedTests
-      ? Math.round((myAttempts.reduce((sum, attempt) => sum + attempt.percent, 0) / completedTests) * 100) / 100
-      : 0;
+    return {
+      success: true,
+      data: {
+        projectCount,
+        plan: subscription?.plan.code ?? 'free',
+        planExpiresAt: subscription?.period_end ?? null,
+        recentProjects,
+      },
+    };
+  }
+
+  async adminStats() {
+    const monthAgo = new Date();
+    monthAgo.setDate(monthAgo.getDate() - 30);
+
+    const [users, newUsers, projects, newProjects, activeSubs, leads, revenue] =
+      await prisma.$transaction([
+        prisma.user.count(),
+        prisma.user.count({ where: { created_at: { gte: monthAgo } } }),
+        prisma.project.count({ where: { deleted_at: null } }),
+        prisma.project.count({ where: { deleted_at: null, created_at: { gte: monthAgo } } }),
+        prisma.subscription.count({ where: { status: SUBSCRIPTION_STATUS.ACTIVE } }),
+        prisma.lead.count({ where: { status: 'NEW' } }),
+        prisma.payment.aggregate({
+          where: { status: PAYMENT_STATUS.PAID, paid_at: { gte: monthAgo } },
+          _sum: { amount: true },
+        }),
+      ]);
 
     return {
       success: true,
       data: {
-        totalTests,
-        completedTests,
-        averageScore,
-        bestScore: bestAttempt?.percent ?? 0,
-        recentAttempts,
+        users,
+        newUsers,
+        projects,
+        newProjects,
+        activeSubscriptions: activeSubs,
+        openLeads: leads,
+        revenue30d: revenue._sum.amount ?? 0,
       },
     };
   }

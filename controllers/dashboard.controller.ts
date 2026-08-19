@@ -1,6 +1,6 @@
 import { Controller, Inject } from '@tsed/di';
-import { Get } from '@tsed/schema';
-import { Authenticate, Authorized } from '@/middlewares/auth.middleware';
+import { Get, Summary } from '@tsed/schema';
+import { AdminOnly, Authenticate, Authorized } from '@/middlewares/auth.middleware';
 import { DashboardService } from '@/services/dashboard.service';
 
 @Controller('/dashboard')
@@ -12,5 +12,11 @@ export class DashboardController {
   @Authorized(Authenticate())
   async stats() {
     return await this.dashboardService.stats();
+  }
+
+  @Get('/admin')
+  @Authorized(AdminOnly())
+  async adminStats() {
+    return await this.dashboardService.adminStats();
   }
 }

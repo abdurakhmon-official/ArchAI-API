@@ -1,0 +1,131 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Bir branchda ketma-ket push bo'lsa, eskisini bekor qilamiz —
+# navbatda turgan build'lar uchun kutishning ma'nosi yo'q.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: archai_test
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports: ['5432:5432']
+
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 3s
+          --health-retries 5
+        ports: ['6379:6379']
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/archai_test?schema=public
+      REDIS_URL: redis://localhost:6379
+      JWT_SECRET: ci-only-secret-that-is-long-enough-to-pass
+      # Chromium testlarda kerak emas — 400 MB yuklab olishning ma'nosi yo'q.
+      PUPPETEER_SKIP_DOWNLOAD: 'true'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: yarn
+          cache-dependency-path: yarn.lock
+
+      - run: yarn install --frozen-lockfile
+
+      - name: Prisma klienti
+        run: npx prisma generate
+
+      - name: Barrel fayllar
+        run: yarn barrels
+
+      - name: Tiplar
+        run: npx tsc --noEmit -p tsconfig.json
+
+      # Modul chegaralari: servislar orasida sikl bo'lmasligi va
+      # `geometry/` ning sof qolishi shu yerda majburiy qilinadi.
+      - name: Modul chegaralari
+        run: yarn depcruise
+
+      - name: Testlar
+        run: npx jest --ci
+
+      - name: Migratsiya va seed
+        run: |
+          npx prisma migrate deploy
+          npx prisma db seed
+
+      # Eng muhim tekshiruv: hamma narsa birgalikda ishlayaptimi.
+      - name: Funksional tekshiruv
+        run: |
+          npx ts-node -r tsconfig-paths/register index.ts &
+          for i in $(seq 1 60); do
+            curl -sf http://localhost:3000/api/health >/dev/null && break
+            sleep 1
+          done
+          node scripts/verify-all.js
+        env:
+          API_URL: http://localhost:3000/api
+          PORT: 3000
+          STAGE: local
+
+  image:
+    needs: check
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    strategy:
+      matrix:
+        include:
+          - name: api
+            dockerfile: Dockerfile
+          - name: worker
+            dockerfile: worker/Dockerfile
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}-${{ matrix.name }}:latest
+            ghcr.io/${{ github.repository }}-${{ matrix.name }}:${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}

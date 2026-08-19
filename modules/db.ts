@@ -1,4 +1,4 @@
-import { PrismaClient } from '@/generated/prisma/client';
+import { PrismaClient } from '../generated/prisma/client';
 
 if (!global.__db) {
   global.__db = new PrismaClient({

@@ -15,112 +15,532 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+
 model User {
-  id          String         @id @default(cuid())
-  fullName    String
-  email       String         @unique
-  password    String
-  role        USER_ROLE      @default(USER)
-  subject     String?
-  school_name String?
-  region      String?
-  district    String?
-  phone       String?
-  avatar      String?
-  active      Boolean        @default(true)
-  created_at  DateTime       @default(now())
-  updated_at  DateTime       @updatedAt
-  attempts    TestAttempts[]
+  id             String         @id @default(cuid())
+  fullName       String
+  email          String         @unique
+  password       String
+  role           USER_ROLE      @default(USER)
+  phone          String?
+  avatar         String?
+  locale         String         @default("uz")
+  email_verified Boolean        @default(false)
+  /// Parol oxirgi marta o'zgargan payt — undan oldingi tokenlar rad etiladi.
+  password_changed_at DateTime?
+  active         Boolean        @default(true)
+  created_at     DateTime       @default(now())
+  updated_at     DateTime       @updatedAt
+  projects       Project[]
+  subscriptions  Subscription[]
+  payments       Payment[]
+  posts          BlogPost[]
+  audit_logs     AuditLog[]
+  media          Media[]
+  verifications  VerificationToken[]
+  price_profiles PriceProfile[]
 
   @@index([email])
   @@map("users")
 }
 
-model Subject {
-  id         String   @id @default(cuid())
-  name       String   @unique
+/// Foydalanuvchining o'z narxlari — loyihalar orasida qayta ishlatiladi.
+model PriceProfile {
+  id      String @id @default(cuid())
+  user_id String
+  user    User   @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  name       String
+  /// `EstimateSelection` — band kodidan tanlovga.
+  selection  Json
   created_at DateTime @default(now())
-
-  @@map("subjects")
-}
-
-model Tests {
-  id               String         @id @default(cuid())
-  name             String
-  description      String?
-  subject          String?
-  duration_minutes Int            @default(30)
-  active           Boolean        @default(true)
-  created_at       DateTime       @default(now())
-  updated_at       DateTime       @updatedAt
-  questions        Questions[]
-  attempts         TestAttempts[]
-
-  @@index([subject])
-  @@map("tests")
-}
-
-model Questions {
-  id             String           @id @default(cuid())
-  test_id        String
-  text           String
-  option_a       String
-  option_b       String
-  option_c       String
-  option_d       String
-  correct_option TEST_OPTION
-  order          Int              @default(0)
-  created_at     DateTime         @default(now())
-  test           Tests            @relation(fields: [test_id], references: [id], onDelete: Cascade)
-  answers        AttemptAnswers[]
-
-  @@index([test_id])
-  @@map("questions")
-}
-
-model TestAttempts {
-  id               String           @id @default(cuid())
-  user_id          String
-  test_id          String
-  total_questions  Int
-  correct_count    Int
-  incorrect_count  Int
-  score            Int
-  percent          Float
-  duration_seconds Int?
-  created_at       DateTime         @default(now())
-  user             User             @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  test             Tests            @relation(fields: [test_id], references: [id], onDelete: Cascade)
-  answers          AttemptAnswers[]
+  updated_at DateTime @updatedAt
 
   @@index([user_id])
-  @@index([test_id])
-  @@map("test_attempts")
+  @@map("price_profiles")
 }
 
-model AttemptAnswers {
-  id              String       @id @default(cuid())
-  attempt_id      String
-  question_id     String
-  selected_option TEST_OPTION?
-  is_correct      Boolean
-  attempt         TestAttempts @relation(fields: [attempt_id], references: [id], onDelete: Cascade)
-  question        Questions    @relation(fields: [question_id], references: [id], onDelete: Cascade)
+enum VERIFICATION_PURPOSE {
+  EMAIL
+  PASSWORD_RESET
+}
 
-  @@index([attempt_id])
-  @@index([question_id])
-  @@map("attempt_answers")
+/// Email tasdiqlash va parolni tiklash tokeni.
+model VerificationToken {
+  id String @id @default(cuid())
+
+  user_id String
+  user    User   @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  /// Token XESHI — xom qiymat faqat xatga tushadi va saqlanmaydi.
+  token_hash String               @unique
+  purpose    VERIFICATION_PURPOSE
+  expires_at DateTime
+  /// Bir marta ishlatiladi: to'ldirilgan bo'lsa token o'lik.
+  used_at    DateTime?
+  created_at DateTime             @default(now())
+
+  @@index([user_id, purpose])
+  @@index([expires_at])
+  @@map("verification_tokens")
+}
+
+model Style {
+  id           String         @id @default(cuid())
+  slug         String         @unique
+  name         Json
+  description  Json?
+  roof         Json
+  roof_style_id String?
+  roof_style   RoofStyle?     @relation(fields: [roof_style_id], references: [id], onDelete: SetNull)
+  facade       Json
+  window       Json
+  interior     Json
+  layout_rules Json
+  furniture_sets Json?
+  preview_url  String?
+  status       CONTENT_STATUS @default(DRAFT)
+  sort         Int            @default(0)
+  created_at   DateTime       @default(now())
+  updated_at   DateTime       @updatedAt
+  projects     Project[]
+
+  @@index([status])
+  @@map("styles")
+}
+
+model RoofStyle {
+  id           String         @id @default(cuid())
+  code         String         @unique
+  name         Json
+  family       ROOF_FAMILY
+  pitch        Float          @default(25)
+  overhang     Float          @default(0.5)
+  upper_pitch  Float?
+  break_ratio  Float?
+  covering_id  String?
+  covering     PriceOption?   @relation(fields: [covering_id], references: [id], onDelete: SetNull)
+  color        String?
+  preview_url  String?
+  status       CONTENT_STATUS @default(DRAFT)
+  sort         Int            @default(0)
+  created_at   DateTime       @default(now())
+  updated_at   DateTime       @updatedAt
+  styles       Style[]
+
+  @@index([status])
+  @@map("roof_styles")
+}
+
+model RoomType {
+  id                  String   @id @default(cuid())
+  code                String   @unique
+  name                Json
+  min_area            Float
+  max_area            Float
+  ideal_ratio         Float    @default(1.4)
+  needs_exterior_wall Boolean  @default(true)
+  is_wet_zone         Boolean  @default(false)
+  access_from         String[] @default([])
+  furniture_tags      String[] @default([])
+  /// Quyosh bo'yicha afzal tomonlar. Bo'sh — farqi yo'q.
+  sun_sides           String[] @default([])
+  selectable          Boolean  @default(false)
+  max_count           Int      @default(8)
+  default_count       Int      @default(0)
+  sort                Int      @default(0)
+  created_at          DateTime @default(now())
+  updated_at          DateTime @updatedAt
+
+  @@map("room_types")
+}
+
+model Skeleton {
+  id           String         @id @default(cuid())
+  name         String
+  floors       Int            @default(1)
+  tree         Json
+  tag_bedrooms Int[]          @default([])
+  tag_styles   String[]       @default([])
+  min_width    Float
+  max_width    Float
+  min_length   Float
+  max_length   Float
+  status       CONTENT_STATUS @default(DRAFT)
+  created_at   DateTime       @default(now())
+  updated_at   DateTime       @updatedAt
+
+  projects     Project[]
+
+  @@index([floors, status])
+  @@map("skeletons")
+}
+
+model Media {
+  id            String     @id @default(cuid())
+  type          MEDIA_TYPE @default(IMAGE)
+  url           String
+  key           String     @unique
+  original_name String
+  mime_type     String
+  size          Int
+  uploaded_by   String?
+  created_at    DateTime   @default(now())
+  uploader      User?      @relation(fields: [uploaded_by], references: [id], onDelete: SetNull)
+
+  @@index([type])
+  @@index([uploaded_by])
+  @@map("media")
+}
+
+model FurnitureAsset {
+  id          String   @id @default(cuid())
+  name        Json
+  gltf_url    String
+  thumb_url   String?
+  room_types  String[] @default([])
+  style_tags  String[] @default([])
+  footprint   Json
+  placement   String   @default("WALL")
+  active      Boolean  @default(true)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  @@map("furniture_assets")
+}
+
+model PriceItem {
+  id         String         @id @default(cuid())
+  category   PRICE_CATEGORY
+  code       String         @unique
+  name       Json
+  unit       String
+  unit_price Decimal        @db.Decimal(14, 2)
+  measure    String
+  sort       Int            @default(0)
+  active     Boolean        @default(true)
+  created_at DateTime       @default(now())
+  updated_at DateTime       @updatedAt
+  options    PriceOption[]
+
+  @@index([category])
+  @@map("price_items")
+}
+
+model PriceOption {
+  id            String    @id @default(cuid())
+  price_item_id String
+  code          String
+  name          Json
+  description   Json?
+  unit_price    Decimal   @db.Decimal(14, 2)
+  image_url     String?
+  sort          Int       @default(0)
+  active        Boolean   @default(true)
+  created_at    DateTime  @default(now())
+  updated_at    DateTime  @updatedAt
+  item          PriceItem @relation(fields: [price_item_id], references: [id], onDelete: Cascade)
+  roofStyles    RoofStyle[]
+
+  @@unique([price_item_id, code])
+  @@index([price_item_id])
+  @@map("price_options")
+}
+
+model FinishLevel {
+  id         String   @id @default(cuid())
+  code       String   @unique
+  name       Json
+  defaults   Json     @default("{}")
+  sort       Int      @default(0)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt @default(now())
+
+  @@map("finish_levels")
+}
+
+model Project {
+  id             String           @id @default(cuid())
+  user_id        String
+  style_id       String?
+  skeleton_id    String?
+  title          String
+  note           String?
+  params         Json
+  geometry       Json
+  estimate       Json?
+  estimate_total Decimal?         @db.Decimal(14, 2)
+  estimate_selection Json?
+  finish_level   String           @default("standard")
+  cover_svg      String?
+  deleted_at     DateTime?
+  /// Ulashish havolasi tokeni. NULL — ulashilmagan.
+  share_token String? @unique
+  created_at     DateTime         @default(now())
+  updated_at     DateTime         @updatedAt
+  user           User             @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  style          Style?           @relation(fields: [style_id], references: [id], onDelete: SetNull)
+  skeleton       Skeleton?        @relation(fields: [skeleton_id], references: [id], onDelete: SetNull)
+  versions       ProjectVersion[]
+  exports        ProjectExport[]
+
+  @@index([user_id, deleted_at])
+  @@map("projects")
+}
+
+model ProjectExport {
+  id            String      @id @default(cuid())
+  project_id    String
+  kind          EXPORT_KIND @default(PDF)
+  storage_key   String
+  geometry_hash String
+  watermark     Boolean     @default(false)
+  size_bytes    Int?
+  expires_at    DateTime?
+  created_at    DateTime    @default(now())
+  project       Project     @relation(fields: [project_id], references: [id], onDelete: Cascade)
+
+  @@unique([project_id, kind, geometry_hash, watermark])
+  @@index([expires_at])
+  @@map("project_exports")
+}
+
+model ProjectVersion {
+  id             String   @id @default(cuid())
+  project_id     String
+  geometry       Json
+  params         Json
+  estimate_total Decimal? @db.Decimal(14, 2)
+  label          String?
+  created_at     DateTime @default(now())
+  project        Project  @relation(fields: [project_id], references: [id], onDelete: Cascade)
+
+  @@index([project_id, created_at])
+  @@map("project_versions")
+}
+
+model Plan {
+  id            String         @id @default(cuid())
+  code          String         @unique
+  name          Json
+  description   Json?
+  price_uzs     Decimal        @db.Decimal(14, 2)
+  price_usd     Decimal        @db.Decimal(10, 2)
+  limits        Json
+  sort          Int            @default(0)
+  active        Boolean        @default(true)
+  created_at    DateTime       @default(now())
+  updated_at    DateTime       @updatedAt
+  subscriptions Subscription[]
+
+  @@map("plans")
+}
+
+model Subscription {
+  id           String              @id @default(cuid())
+  user_id      String
+  plan_id      String
+  status       SUBSCRIPTION_STATUS @default(PENDING)
+  provider     PAYMENT_PROVIDER?
+  period_start DateTime?
+  period_end   DateTime?
+  auto_renew   Boolean             @default(true)
+  external_id  String?
+  created_at   DateTime            @default(now())
+  updated_at   DateTime            @updatedAt
+  user         User                @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  plan         Plan                @relation(fields: [plan_id], references: [id])
+  payments     Payment[]
+
+  @@index([user_id, status])
+  @@map("subscriptions")
+}
+
+model Payment {
+  id              String           @id @default(cuid())
+  user_id         String
+  subscription_id String?
+  provider        PAYMENT_PROVIDER
+  amount          Decimal          @db.Decimal(14, 2)
+  currency        String           @default("UZS")
+  status          PAYMENT_STATUS   @default(PENDING)
+  external_id     String
+  raw             Json?
+  paid_at         DateTime?
+  created_at      DateTime         @default(now())
+  updated_at      DateTime         @updatedAt
+  user            User             @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  subscription    Subscription?    @relation(fields: [subscription_id], references: [id], onDelete: SetNull)
+
+  @@unique([provider, external_id])
+  @@index([user_id])
+  @@map("payments")
+}
+
+model PayoutCard {
+  id          String           @id @default(cuid())
+  provider    PAYMENT_PROVIDER
+  label       String
+  /// Faqat oxirgi 4 raqam saqlanadi — to'liq raqam hech qachon bazada turmaydi.
+  last4       String
+  holder      String
+  expiry      String
+  /// Provayderdagi hisob identifikatori (merchant/payout account).
+  account_id  String
+  active      Boolean          @default(false)
+  created_by  String?
+  created_at  DateTime         @default(now())
+  updated_at  DateTime         @updatedAt
+
+  @@index([provider, active])
+  @@map("payout_cards")
+}
+
+model BlogCategory {
+  id         String     @id @default(cuid())
+  slug       String     @unique
+  name       Json
+  sort       Int        @default(0)
+  created_at DateTime   @default(now())
+  posts      BlogPost[]
+
+  @@map("blog_categories")
+}
+
+model BlogPost {
+  id           String         @id @default(cuid())
+  slug         String         @unique
+  title        Json
+  excerpt      Json?
+  body         Json
+  cover_url    String?
+  category_id  String?
+  author_id    String?
+  status       CONTENT_STATUS @default(DRAFT)
+  views        Int            @default(0)
+  published_at DateTime?
+  created_at   DateTime       @default(now())
+  updated_at   DateTime       @updatedAt
+  category     BlogCategory?  @relation(fields: [category_id], references: [id], onDelete: SetNull)
+  author       User?          @relation(fields: [author_id], references: [id], onDelete: SetNull)
+
+  @@index([status, published_at])
+  @@map("blog_posts")
+}
+
+model FaqItem {
+  id         String   @id @default(cuid())
+  category   String   @default("general")
+  question   Json
+  answer     Json
+  sort       Int      @default(0)
+  active     Boolean  @default(true)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@index([category])
+  @@map("faq_items")
+}
+
+model Lead {
+  id      String  @id @default(cuid())
+  name    String
+  phone   String
+  message String?
+  admin_note String?
+  source     String      @default("contact")
+  payload    Json?
+  status     LEAD_STATUS @default(NEW)
+  created_at DateTime    @default(now())
+  updated_at DateTime    @updatedAt
+
+  @@index([status])
+  @@map("leads")
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actor_id   String?
+  action     String
+  entity     String
+  entity_id  String?
+  diff       Json?
+  created_at DateTime @default(now())
+  actor      User?    @relation(fields: [actor_id], references: [id], onDelete: SetNull)
+
+  @@index([entity, entity_id])
+  @@index([created_at])
+  @@index([actor_id])
+  @@map("audit_logs")
 }
 
 enum USER_ROLE {
   ADMIN
-  TEACHER
+  ARCHITECT
   USER
 }
 
-enum TEST_OPTION {
-  A
-  B
-  C
-  D
+enum ROOF_FAMILY {
+  flat
+  shed
+  gable
+  hip
+  pyramid
+  mansard
+}
+
+enum CONTENT_STATUS {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum PRICE_CATEGORY {
+  FOUNDATION
+  WALLS
+  ROOF
+  WINDOWS_DOORS
+  FINISHING
+  UTILITIES
+  OTHER
+}
+
+enum SUBSCRIPTION_STATUS {
+  PENDING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  EXPIRED
+}
+
+enum PAYMENT_PROVIDER {
+  PAYME
+  CLICK
+  STRIPE
+}
+
+enum PAYMENT_STATUS {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+  CANCELED
+}
+
+enum LEAD_STATUS {
+  NEW
+  CONTACTED
+  CLOSED
+}
+
+enum EXPORT_KIND {
+  PDF
+  RENDER
+  DWG
+}
+
+enum MEDIA_TYPE {
+  IMAGE
+  MODEL
+  DOCUMENT
 }

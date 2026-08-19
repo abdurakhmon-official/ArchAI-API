@@ -2,7 +2,7 @@ import jwt, { SignOptions } from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
 import { Unauthorized } from '@tsed/exceptions';
 import config from '@/config';
-import { USER_ROLE } from '@/generated/prisma';
+import { USER_ROLE } from '../generated/prisma';
 import { BCRYPT_SALT_ROUNDS } from '@/utils/constants';
 import { nanoid } from '@/modules/nanoid';
 

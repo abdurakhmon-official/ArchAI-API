@@ -2,12 +2,16 @@ import { Catch, ExceptionFilterMethods } from '@tsed/platform-exceptions';
 import { PlatformContext } from '@tsed/common';
 import { Exception } from '@tsed/exceptions';
 import { ZodError } from 'zod';
-import { Prisma } from '@/generated/prisma';
+import { Prisma } from '../generated/prisma';
 import config from '@/config';
 
 interface ErrorResponse {
   success: false;
   _message: string;
+  /** Translation key. The browser renders this, not `_message`. */
+  _code?: string;
+  code?: string;
+  meta?: Record<string, unknown>;
   errors?: { field: string; message: string }[];
   stack?: string;
 }
@@ -48,11 +52,20 @@ export class GlobalErrorFilter implements ExceptionFilterMethods {
     }
 
     if (exception instanceof Exception) {
+      const tagged = exception as Exception & {
+        code?: string;
+        _code?: string;
+        meta?: Record<string, unknown>;
+      };
+
       return {
         status: exception.status,
         body: {
           success: false,
           _message: exception.message,
+          ...(typeof tagged._code === 'string' ? { _code: tagged._code } : {}),
+          ...(typeof tagged.code === 'string' ? { code: tagged.code } : {}),
+          ...(tagged.meta ? { meta: tagged.meta } : {}),
           ...(this.normalizeExceptionErrors(exception)),
         },
       };

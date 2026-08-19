@@ -1,4 +1,4 @@
 export default {
-  port: process.env.PORT,
+  port: Number(process.env.PORT),
   logging: false,
 };

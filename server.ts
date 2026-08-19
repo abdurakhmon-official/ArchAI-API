@@ -3,11 +3,12 @@ configDotEnv();
 
 import { Configuration, Inject } from '@tsed/di';
 import { PlatformApplication } from '@tsed/common';
-import '@tsed/platform-express'; // /!\ keep this import
+import '@tsed/platform-express'; 
 import '@tsed/ajv';
 import '@tsed/swagger';
 import * as controllers from './controllers';
-import { Application, json, urlencoded } from 'express';
+import express, { Application, json, urlencoded } from 'express';
+import { LOCAL_STORAGE_DIR, storageDriver } from '@/modules/storage';
 import helmet from 'helmet';
 import cors from 'cors';
 import compression from 'compression';
@@ -17,7 +18,6 @@ import config from '@/config';
 import bearerToken from 'express-bearer-token';
 import { logging } from './middlewares/logging.middleware';
 import { get404 } from './middlewares/404.middleware';
-// Importing the filter is what registers it — `componentsScan` is off.
 import './middlewares/error.middleware';
 
 const API_ROOT = config.apiRoot;
@@ -28,6 +28,8 @@ const corsOrigin = config.cors.origin === '*' ? true : config.cors.origin.split(
   acceptMimes: ['application/json'],
   httpPort: config.port,
   httpsPort: false,
+
+  httpOptions: { keepAliveTimeout: 65_000, headersTimeout: 66_000 },
   componentsScan: false,
   mount: {
     [API_ROOT]: [...Object.values(controllers)],
@@ -44,7 +46,7 @@ const corsOrigin = config.cors.origin === '*' ? true : config.cors.origin.split(
               title: 'EduTest API',
               version: '1.0.0',
               description:
-                "REST API for EduTest: an online test platform for teachers — profiles, tests, questions and results.\n\n" +
+                "REST API for ArchAi: an online test platform for teachers — profiles, tests, questions and results.\n\n" +
                 'Sign in through `POST /api/auth/signin`, then press **Authorize** and paste the returned token.',
             },
             components: {
@@ -72,20 +74,13 @@ export class Server {
   protected settings!: Configuration;
 
   $beforeRoutesInit() {
-    // Required for `secure` cookies and correct client IPs behind a proxy.
     this.app.rawApp.set('trust proxy', 1);
-
-    // Express 5 defaults to the `simple` query parser, which cannot decode the
-    // nested syntax the list endpoints rely on
-    // (`?sortBy[0][key]=created_at&sortBy[0][order]=desc`). Without `extended`
-    // those params arrive as flat, unusable keys and sorting silently falls back
-    // to the default.
     this.app.rawApp.set('query parser', 'extended');
 
     this.app.use(hpp());
     this.app.use(
       helmet({
-        contentSecurityPolicy: false, // not needed in api context
+        contentSecurityPolicy: false, 
         crossOriginResourcePolicy: false,
       }),
     );
@@ -97,6 +92,12 @@ export class Server {
     );
     this.app.use(cookieParser());
     this.app.use(compression());
+
+    this.app.use(`${API_ROOT}/webhook/stripe`, express.raw({ type: '*/*', limit: '1mb' }));
+
+    if (storageDriver() === 'local') {
+      this.app.use(`${API_ROOT}/static`, express.static(LOCAL_STORAGE_DIR, { maxAge: '1h' }));
+    }
     this.app.use(json({ limit: '1mb' }));
     this.app.use(urlencoded({ extended: true }));
     this.app.use(bearerToken());
@@ -111,8 +112,6 @@ export class Server {
       console.info(`API documentation on http://localhost:${config.port}${config.swagger.path}`);
     }
 
-    // Anything that reached this point matched no route. Errors never do —
-    // they are handled by GlobalErrorFilter.
     this.app.use(get404());
   }
 }

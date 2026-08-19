@@ -6,7 +6,7 @@ import { Inject } from '@tsed/di';
 import { useDecorators } from '@tsed/core';
 import { Returns, Security } from '@tsed/schema';
 import { Request } from 'express';
-import { USER_ROLE } from '@/generated/prisma';
+import { USER_ROLE } from '../generated/prisma';
 import prisma from '@/modules/db';
 import { Authenticate, verifyJWT } from '@/modules/auth';
 import { TokenService } from '@/services/token.service';
@@ -48,7 +48,7 @@ export class AuthMiddleware implements MiddlewareMethods {
 
     const payload = verifyJWT(clientToken);
 
-    if (this.tokenService.isRevoked(payload.jti)) {
+    if (await this.tokenService.isRevoked(payload.jti)) {
       throw new Unauthorized('Session has been terminated. Please sign in again.');
     }
 
@@ -65,9 +65,63 @@ export class AuthMiddleware implements MiddlewareMethods {
       throw new Forbidden('Your account has been deactivated. Please contact an administrator.');
     }
 
+    if (issuedBeforePasswordChange(payload.iat, user.password_changed_at)) {
+      throw new Unauthorized('Session has been terminated. Please sign in again.');
+    }
+
     request.user = { ...user, isAdmin: user.role === USER_ROLE.ADMIN };
     request.auth = payload;
   }
+}
+
+@Middleware()
+export class OptionalAuthMiddleware implements MiddlewareMethods {
+  @Inject()
+  private tokenService!: TokenService;
+
+  public async use(@Req() request: Req) {
+    const req = request as unknown as Request;
+    if (!req.token) return true;
+
+    try {
+      const payload = verifyJWT(req.token);
+      if (await this.tokenService.isRevoked(payload.jti)) return true;
+
+      const user = await prisma.user.findUnique({
+        where: { id: payload.sub },
+        select: USER_PUBLIC_SELECT,
+      });
+
+      if (user?.active && !issuedBeforePasswordChange(payload.iat, user.password_changed_at)) {
+        req.user = { ...user, isAdmin: user.role === USER_ROLE.ADMIN };
+        req.auth = payload;
+      }
+    } catch {
+    }
+
+    return true;
+  }
+}
+
+/**
+ * Token parol o'zgarishidan OLDIN berilganmi.
+ *
+ * JWT bekor qilinmaydi va bitta `jti` ni qora ro'yxatga qo'yish faqat
+ * o'sha tokenga ta'sir qiladi. Parolni tiklashning eng ko'p
+ * uchraydigan sababi esa hisobga birov kirib qolgani — u odamda
+ * boshqa token bor. Shu solishtiruv bilan hammasi bir yo'la uziladi.
+ *
+ * Bir soniyalik yon berish: `iat` soniyagacha yaxlitlangan va parol
+ * o'zgarishi bilan token berilishi bir soniyaga tushib qolsa, yangi
+ * token ham rad etilib, foydalanuvchi darhol chiqib ketardi.
+ */
+function issuedBeforePasswordChange(iat: number | undefined, changedAt: Date | null): boolean {
+  if (!changedAt || !iat) return false;
+  return iat + 1 < Math.floor(changedAt.getTime() / 1000);
+}
+
+export function OptionalAuth(): Function {
+  return useDecorators(UseAuth(OptionalAuthMiddleware), Security('bearerAuth'));
 }
 
 export { Authenticate };
@@ -77,8 +131,8 @@ export function AdminOnly(): RoleRequirements {
   return Authenticate(USER_ROLE.ADMIN);
 }
 
-export function TeacherOnly(): RoleRequirements {
-  return Authenticate(USER_ROLE.TEACHER);
+export function ArchitectOnly(): RoleRequirements {
+  return Authenticate(USER_ROLE.ARCHITECT);
 }
 
 export function Authorized(options: RoleRequirements = { role: null }): Function {

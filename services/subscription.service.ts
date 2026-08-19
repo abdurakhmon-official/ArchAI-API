@@ -1,0 +1,192 @@
+import { Injectable } from '@tsed/di';
+import { NotFound } from '@tsed/exceptions';
+import { badRequest } from '@/utils/errors';
+import {
+  PAYMENT_PROVIDER,
+  PAYMENT_STATUS,
+  Prisma,
+  SUBSCRIPTION_STATUS,
+} from '../generated/prisma';
+import prisma from '@/modules/db';
+import events from '@/modules/events';
+
+const FREE_PLAN = 'free';
+
+@Injectable()
+export class SubscriptionService {
+  async current(userId: string) {
+    const [subscription, payments] = await Promise.all([
+      prisma.subscription.findFirst({
+        where: { user_id: userId, status: SUBSCRIPTION_STATUS.ACTIVE },
+        include: { plan: true },
+        orderBy: { created_at: 'desc' },
+      }),
+      prisma.payment.findMany({
+        where: { user_id: userId },
+        orderBy: { created_at: 'desc' },
+        take: 20,
+        select: {
+          id: true,
+          provider: true,
+          amount: true,
+          currency: true,
+          status: true,
+          paid_at: true,
+          created_at: true,
+        },
+      }),
+    ]);
+
+    return { success: true, data: { subscription, payments } };
+  }
+
+  async createPending(
+    userId: string,
+    planCode: string,
+    provider: PAYMENT_PROVIDER,
+    months: number,
+  ) {
+    if (planCode === FREE_PLAN) {
+      throw badRequest('SUBSCRIPTION_FREE_NO_PAYMENT', 'the free plan needs no payment');
+    }
+
+    const plan = await prisma.plan.findUnique({ where: { code: planCode } });
+    if (!plan || !plan.active) throw new NotFound(`plan not found: ${planCode}`);
+
+    await prisma.subscription.updateMany({
+      where: { user_id: userId, status: SUBSCRIPTION_STATUS.PENDING },
+      data: { status: SUBSCRIPTION_STATUS.CANCELED },
+    });
+
+    const subscription = await prisma.subscription.create({
+      data: {
+        user_id: userId,
+        plan_id: plan.id,
+        status: SUBSCRIPTION_STATUS.PENDING,
+        provider,
+        auto_renew: false,
+      },
+      include: { plan: true },
+    });
+
+    return { subscription, plan, amount: Number(plan.price_uzs) * months, months };
+  }
+
+  async activate(subscriptionId: string, months: number) {
+    const subscription = await prisma.subscription.findUnique({
+      where: { id: subscriptionId },
+      include: { plan: true },
+    });
+
+    if (!subscription) throw new NotFound('subscription not found');
+    if (subscription.status === SUBSCRIPTION_STATUS.ACTIVE) {
+      return subscription;
+    }
+
+    const now = new Date();
+
+    const existing = await prisma.subscription.findFirst({
+      where: {
+        user_id: subscription.user_id,
+        status: SUBSCRIPTION_STATUS.ACTIVE,
+        period_end: { gt: now },
+      },
+      orderBy: { period_end: 'desc' },
+    });
+
+    const start = existing?.period_end ?? now;
+    const end = new Date(start);
+    end.setMonth(end.getMonth() + months);
+
+    const [activated] = await prisma.$transaction([
+      prisma.subscription.update({
+        where: { id: subscriptionId },
+        data: {
+          status: SUBSCRIPTION_STATUS.ACTIVE,
+          period_start: start,
+          period_end: end,
+        },
+        include: { plan: true },
+      }),
+      ...(existing
+        ? [
+            prisma.subscription.update({
+              where: { id: existing.id },
+              data: { status: SUBSCRIPTION_STATUS.EXPIRED },
+            }),
+          ]
+        : []),
+    ]);
+
+    events.emit('subscription.activated', {
+      subscriptionId: activated.id,
+      userId: activated.user_id,
+      planCode: activated.plan.code,
+    });
+
+    return activated;
+  }
+
+  async cancel(userId: string, subscriptionId: string) {
+    const subscription = await prisma.subscription.findUnique({ where: { id: subscriptionId } });
+
+    if (!subscription || subscription.user_id !== userId) {
+      throw new NotFound('subscription not found');
+    }
+
+    const updated = await prisma.subscription.update({
+      where: { id: subscriptionId },
+      data: { auto_renew: false },
+    });
+
+    return {
+      success: true,
+      _code: 'SUBSCRIPTION_UPDATED',
+      _message: `subscription runs until ${updated.period_end?.toISOString().slice(0, 10) ?? 'the end of the period'}`,
+      meta: { until: updated.period_end?.toISOString().slice(0, 10) ?? '' },
+      data: updated,
+    };
+  }
+
+  async recordPayment(input: {
+    userId: string;
+    subscriptionId: string | null;
+    provider: PAYMENT_PROVIDER;
+    externalId: string;
+    amount: number;
+    status: PAYMENT_STATUS;
+    raw?: unknown;
+  }) {
+    return prisma.payment.upsert({
+      where: {
+        provider_external_id: { provider: input.provider, external_id: input.externalId },
+      },
+      update: {
+        status: input.status,
+        ...(input.status === PAYMENT_STATUS.PAID ? { paid_at: new Date() } : {}),
+        raw: (input.raw ?? undefined) as Prisma.InputJsonValue,
+      },
+      create: {
+        user_id: input.userId,
+        subscription_id: input.subscriptionId,
+        provider: input.provider,
+        external_id: input.externalId,
+        amount: input.amount,
+        status: input.status,
+        ...(input.status === PAYMENT_STATUS.PAID ? { paid_at: new Date() } : {}),
+        raw: (input.raw ?? undefined) as Prisma.InputJsonValue,
+      },
+    });
+  }
+
+  async findPayment(provider: PAYMENT_PROVIDER, externalId: string) {
+    return prisma.payment.findUnique({
+      where: { provider_external_id: { provider, external_id: externalId } },
+      include: { subscription: { include: { plan: true } } },
+    });
+  }
+
+  async findPendingSubscription(id: string) {
+    return prisma.subscription.findUnique({ where: { id }, include: { plan: true, user: true } });
+  }
+}

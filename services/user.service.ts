@@ -7,7 +7,7 @@ import { hashPassword } from '@/modules/auth';
 import { USER_PUBLIC_SELECT } from '@/utils/constants';
 import { CreateUserInput, CreateUserInputSchema, UpdateUserRoleInput, UpdateUserRoleInputSchema } from '@/inputs/user.input';
 import { BasicSearch, BasicSearchSchema } from '@/inputs';
-import { Prisma } from '@/generated/prisma';
+import { Prisma } from '../generated/prisma';
 
 @Injectable()
 export class UserService {
@@ -60,16 +60,13 @@ export class UserService {
         email,
         password: await hashPassword(data.password),
         role: data.role,
-        subject: data.subject,
-        school_name: data.school_name,
-        region: data.region,
-        district: data.district,
         phone: data.phone,
+        locale: data.locale,
       },
       select: USER_PUBLIC_SELECT,
     });
 
-    return { success: true, _message: 'user created', data: user };
+    return { success: true, _code: 'USER_CREATED', _message: 'user created', data: user };
   }
 
   async updateRole(id: string, input: UpdateUserRoleInput) {
@@ -82,11 +79,11 @@ export class UserService {
 
     const updated = await prisma.user.update({
       where: { id },
-      data: { role: data.role, ...(data.subject !== undefined ? { subject: data.subject } : {}) },
+      data: { role: data.role },
       select: USER_PUBLIC_SELECT,
     });
 
-    return { success: true, _message: 'role updated', data: updated };
+    return { success: true, _code: 'USER_ROLE_UPDATED', _message: 'role updated', data: updated };
   }
 
   async delete(id: string) {
@@ -101,6 +98,6 @@ export class UserService {
 
     await prisma.user.delete({ where: { id } });
 
-    return { success: true, _message: 'deleted' };
+    return { success: true, _code: 'USER_DELETED', _message: 'deleted' };
   }
 }
