@@ -1,10 +1,17 @@
 import jwt, { SignOptions } from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
+import argon2 from 'argon2';
 import { Unauthorized } from '@tsed/exceptions';
 import config from '@/config';
 import { USER_ROLE } from '../generated/prisma';
-import { BCRYPT_SALT_ROUNDS } from '@/utils/constants';
 import { nanoid } from '@/modules/nanoid';
+
+const ARGON_OPTIONS: argon2.HashOptions = {
+  type: argon2.argon2id,
+  memoryCost: 19456, // 19 MiB — OWASP recommendation
+  timeCost: 2,
+  parallelism: 1,
+};
 
 export type UserRole = {
   role: USER_ROLE | null;
@@ -23,12 +30,20 @@ export function Authenticate(role: USER_ROLE | null = null): UserRole {
   return { role };
 }
 
+/**
+ * Verifies against either scheme. Old accounts still carry a bcrypt hash
+ * and must keep working — `needsRehash` tells the caller when to replace
+ * it, since only right here, with the plaintext in hand, can that happen.
+ */
 export const comparePassword = (password: string, hash: string) => {
+  if (hash.startsWith('$argon2')) return argon2.verify(hash, password);
   return bcrypt.compare(password, hash);
 };
 
+export const needsRehash = (hash: string) => !hash.startsWith('$argon2');
+
 export const hashPassword = (password: string) => {
-  return bcrypt.hash(password, BCRYPT_SALT_ROUNDS);
+  return argon2.hash(password, ARGON_OPTIONS);
 };
 
 export interface AccessToken {

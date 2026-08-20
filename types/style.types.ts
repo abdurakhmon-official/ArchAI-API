@@ -17,16 +17,16 @@ interface StyleRow {
   facade: unknown;
   window: unknown;
   interior: unknown;
-  layout_rules: unknown;
-  roof_style?: RoofStyleRow | null;
+  layoutRules: unknown;
+  roofStyle?: RoofStyleRow | null;
 }
 
 interface RoofStyleRow {
   family: RoofType;
   pitch: number;
   overhang: number;
-  upper_pitch: number | null;
-  break_ratio: number | null;
+  upperPitch: number | null;
+  breakRatio: number | null;
 }
 
 export type { StyleConfig, StyleRow, RoofStyleRow };

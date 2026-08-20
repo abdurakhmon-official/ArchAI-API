@@ -11,8 +11,8 @@ import { exportHashOf, hashOf } from '../hash';
 
 const project = {
   geometry: { bounds: { x: 0, y: 0, w: 12, h: 10 } },
-  estimate_total: '482000000',
-  estimate_selection: null as unknown,
+  estimateTotal: '482000000',
+  estimateSelection: null as unknown,
 };
 
 describe('export cache key', () => {
@@ -29,7 +29,7 @@ describe('export cache key', () => {
   it('changes when the total changes', () => {
     // Aynan shu holat ilgari ushlanmasdi: narx bazasi yangilangan,
     // geometriya o'sha-o'sha, va foydalanuvchi eski PDF'ni olardi.
-    const repriced = { ...project, estimate_total: '501000000' };
+    const repriced = { ...project, estimateTotal: '501000000' };
 
     expect(exportHashOf(repriced)).not.toBe(exportHashOf(project));
   });
@@ -37,7 +37,7 @@ describe('export cache key', () => {
   it('changes when the material changes, even at the same total', () => {
     // Ikki material bir xil narxda bo'lishi mumkin — summa o'zgarmaydi,
     // lekin hujjatdagi material nomi boshqa bo'ladi.
-    const chosen = { ...project, estimate_selection: { wall_exterior: { optionCode: 'gisht' } } };
+    const chosen = { ...project, estimateSelection: { wall_exterior: { optionCode: 'gisht' } } };
 
     expect(exportHashOf(chosen)).not.toBe(exportHashOf(project));
   });
@@ -45,7 +45,7 @@ describe('export cache key', () => {
   it('an empty selection equals no selection', () => {
     // `selectionOrNull` bo'sh obyektni `null` qilib yozadi, ya'ni bu
     // ikkisi bazada hech qachon ajralmaydi.
-    expect(exportHashOf({ ...project, estimate_selection: null })).toBe(exportHashOf(project));
+    expect(exportHashOf({ ...project, estimateSelection: null })).toBe(exportHashOf(project));
   });
 
   it('a Decimal object hashes like a string', () => {
@@ -53,7 +53,7 @@ describe('export cache key', () => {
     // ko'radi — ichki maydonlari kutubxona versiyasiga bog'liq.
     const decimalLike = { toString: () => '482000000' };
 
-    expect(exportHashOf({ ...project, estimate_total: decimalLike })).toBe(exportHashOf(project));
+    expect(exportHashOf({ ...project, estimateTotal: decimalLike })).toBe(exportHashOf(project));
   });
 });
 

@@ -70,7 +70,7 @@ export class BillingController {
         const payload = Buffer.from(
           [
             `m=${config.payments.payme.merchantId}`,
-            `ac.subscription_id=${subscription.id}`,
+            `ac.subscriptionId=${subscription.id}`,
             `a=${amount * 100}`,
             `c=${config.webUrl}/kabinet/obuna`,
           ].join(';'),
@@ -94,7 +94,7 @@ export class BillingController {
           userId: user.id,
           email: user.email,
           planName: plan.code,
-          amountUsd: Number(plan.price_usd) * input.months,
+          amountUsd: Number(plan.priceUsd) * input.months,
           months,
           returnUrl: input.returnUrl,
         });
@@ -104,7 +104,7 @@ export class BillingController {
           data: {
             provider: input.provider,
             subscriptionId: subscription.id,
-            amount: Number(plan.price_usd) * input.months,
+            amount: Number(plan.priceUsd) * input.months,
             currency: 'USD',
             redirectUrl: session.url,
             sessionId: session.sessionId,

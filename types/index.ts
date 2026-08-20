@@ -5,6 +5,7 @@
 export * from "./click.types";
 export * from "./geometry.types";
 export * from "./job.types";
+export * from "./password-security.types";
 export * from "./payme.types";
 export * from "./payout.types";
 export * from "./plan.types";

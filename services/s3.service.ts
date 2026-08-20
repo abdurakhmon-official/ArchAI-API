@@ -29,10 +29,6 @@ import {
   UploadFolder,
 } from '@/utils/constants';
 
-function readableLimit(): string {
-  return `${Math.floor(MAX_UPLOAD_BYTES / (1024 * 1024))} MB`;
-}
-
 const DEFAULT_EXTENSIONS: Record<string, string> = {
   'image/png': '.png',
   'image/jpeg': '.jpg',
@@ -103,7 +99,7 @@ export class S3Service {
     }
 
     if (contentLength > MAX_UPLOAD_BYTES) {
-      throw new BadRequest(`file is larger than ${readableLimit()}`);
+      throw new BadRequest(`file is larger than ${this.readableLimit()}`);
     }
 
     const extension = extname(fileName || '').toLowerCase() || DEFAULT_EXTENSIONS[mimeType] || '';
@@ -145,7 +141,7 @@ export class S3Service {
     if (!type) throw new BadRequest(`unsupported file type: ${input.mimeType}`);
 
     if (input.size > MAX_UPLOAD_BYTES) {
-      throw new BadRequest(`file is larger than ${readableLimit()}`);
+      throw new BadRequest(`file is larger than ${this.readableLimit()}`);
     }
 
     const actualSize = await objectSize(input.key);
@@ -156,7 +152,7 @@ export class S3Service {
 
     if (actualSize > MAX_UPLOAD_BYTES) {
       await deleteObjects([input.key]).catch(() => undefined);
-      throw new BadRequest(`file is larger than ${readableLimit()}`);
+      throw new BadRequest(`file is larger than ${this.readableLimit()}`);
     }
 
     const { data } = await this.mediaService.register({
@@ -190,7 +186,7 @@ export class S3Service {
 
     if (!type) throw new BadRequest(`unsupported file type: ${file.mimetype}`);
     if (file.size > MAX_UPLOAD_BYTES) {
-      throw new BadRequest(`file is larger than ${readableLimit()}`);
+      throw new BadRequest(`file is larger than ${this.readableLimit()}`);
     }
 
     const extension =
@@ -244,5 +240,9 @@ export class S3Service {
     if (storageDriver() !== 's3') {
       throw new BadRequest('file storage is not configured on the server — set AWS_S3_BUCKET');
     }
+  }
+
+  private readableLimit(): string {
+    return `${Math.floor(MAX_UPLOAD_BYTES / (1024 * 1024))} MB`;
   }
 }

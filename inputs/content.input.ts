@@ -19,10 +19,10 @@ export const BlogPostInputSchema = z.object({
   title: TranslatedSchema,
   excerpt: TranslatedSchema.optional(),
   body: z.record(z.unknown()),
-  cover_url: z.string().url().optional().nullable(),
-  category_id: z.string().optional().nullable(),
+  coverUrl: z.string().url().optional().nullable(),
+  categoryId: z.string().optional().nullable(),
   status: z.nativeEnum(CONTENT_STATUS).default(CONTENT_STATUS.DRAFT),
-  published_at: z.coerce.date().optional().nullable(),
+  publishedAt: z.coerce.date().optional().nullable(),
 });
 
 export const ListPostsInputSchema = z.object({
@@ -63,9 +63,9 @@ export const LeadInputSchema = z.object({
 export const UpdateLeadInputSchema = z
   .object({
     status: z.nativeEnum(LEAD_STATUS).optional(),
-    admin_note: z.string().max(2000).nullable().optional(),
+    adminNote: z.string().max(2000).nullable().optional(),
   })
-  .refine((value) => value.status !== undefined || value.admin_note !== undefined, {
+  .refine((value) => value.status !== undefined || value.adminNote !== undefined, {
     message: 'VALIDATION_STATUS_OR_NOTE',
   });
 

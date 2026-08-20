@@ -19,8 +19,8 @@ const MAX_PROFILES = 10;
 export class PriceProfileService {
   async list(userId: string) {
     const items = await prisma.priceProfile.findMany({
-      where: { user_id: userId },
-      orderBy: { updated_at: 'desc' },
+      where: { userId: userId },
+      orderBy: { updatedAt: 'desc' },
     });
 
     return { success: true, data: items };
@@ -29,14 +29,14 @@ export class PriceProfileService {
   async create(userId: string, input: PriceProfileInput) {
     const data = PriceProfileInputSchema.parse(input);
 
-    const count = await prisma.priceProfile.count({ where: { user_id: userId } });
+    const count = await prisma.priceProfile.count({ where: { userId: userId } });
     if (count >= MAX_PROFILES) {
       throw badRequest('PRICE_PROFILE_LIMIT', `at most ${MAX_PROFILES} profiles can be kept`, { limit: MAX_PROFILES });
     }
 
     const item = await prisma.priceProfile.create({
       data: {
-        user_id: userId,
+        userId: userId,
         name: data.name,
         selection: data.selection as Prisma.InputJsonValue,
       },
@@ -68,7 +68,7 @@ export class PriceProfileService {
     const item = await prisma.priceProfile.findUnique({ where: { id } });
 
     if (!item) throw notFound('PRICE_PROFILE_NOT_FOUND', 'price profile not found');
-    if (item.user_id !== userId) throw notFound('PRICE_PROFILE_NOT_FOUND', 'price profile not found');
+    if (item.userId !== userId) throw notFound('PRICE_PROFILE_NOT_FOUND', 'price profile not found');
 
     return item;
   }

@@ -95,16 +95,16 @@ export class PlanService {
 
     const [items, total] = await prisma.$transaction([
       prisma.subscription.findMany({
-        orderBy: { created_at: 'desc' },
+        orderBy: { createdAt: 'desc' },
         skip,
         take,
         include: {
           plan: { select: { code: true, name: true } },
           user: { select: { id: true, fullName: true, email: true } },
           payments: {
-            orderBy: { created_at: 'desc' },
+            orderBy: { createdAt: 'desc' },
             take: 1,
-            select: { status: true, amount: true, currency: true, paid_at: true },
+            select: { status: true, amount: true, currency: true, paidAt: true },
           },
         },
       }),
@@ -121,19 +121,19 @@ export class PlanService {
   async effectiveFor(userId: string): Promise<EffectivePlan> {
     const subscription = await prisma.subscription.findFirst({
       where: {
-        user_id: userId,
+        userId: userId,
         status: SUBSCRIPTION_STATUS.ACTIVE,
-        OR: [{ period_end: null }, { period_end: { gt: new Date() } }],
+        OR: [{ periodEnd: null }, { periodEnd: { gt: new Date() } }],
       },
       include: { plan: true },
-      orderBy: { created_at: 'desc' },
+      orderBy: { createdAt: 'desc' },
     });
 
     if (subscription) {
       return {
         code: subscription.plan.code,
         limits: this.normalize(subscription.plan.limits),
-        expiresAt: subscription.period_end,
+        expiresAt: subscription.periodEnd,
       };
     }
 
@@ -147,7 +147,7 @@ export class PlanService {
   }
 
   async projectCount(userId: string): Promise<number> {
-    return prisma.project.count({ where: { user_id: userId, deleted_at: null } });
+    return prisma.project.count({ where: { userId: userId, deletedAt: null } });
   }
 
   private toPrisma(data: Partial<PlanInput>) {

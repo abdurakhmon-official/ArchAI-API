@@ -55,15 +55,15 @@ export async function issueToken(
 
   await prisma.$transaction([
     prisma.verificationToken.updateMany({
-      where: { user_id: userId, purpose, used_at: null },
-      data: { used_at: new Date() },
+      where: { userId: userId, purpose, usedAt: null },
+      data: { usedAt: new Date() },
     }),
     prisma.verificationToken.create({
       data: {
-        user_id: userId,
-        token_hash: hashOf(token),
+        userId: userId,
+        tokenHash: hashOf(token),
         purpose,
-        expires_at: new Date(Date.now() + ttlMs),
+        expiresAt: new Date(Date.now() + ttlMs),
       },
     }),
   ]);
@@ -78,7 +78,7 @@ export interface ConsumedToken {
 /**
  * Tokenni ishlatadi — bir marta.
  *
- * Muvaffaqiyatli bo'lsa `used_at` darhol to'ldiriladi, ya'ni bir xil
+ * Muvaffaqiyatli bo'lsa `usedAt` darhol to'ldiriladi, ya'ni bir xil
  * havolani ikki marta ishlatib bo'lmaydi. Bu muhim: havola brauzer
  * tarixida, pochta qutisida va ba'zan xabar oldindan ko'rish
  * xizmatlarining jurnalida qoladi.
@@ -92,35 +92,35 @@ export async function consumeToken(
   purpose: VERIFICATION_PURPOSE,
 ): Promise<ConsumedToken | null> {
   const record = await prisma.verificationToken.findUnique({
-    where: { token_hash: hashOf(token) },
+    where: { tokenHash: hashOf(token) },
   });
 
   if (!record || record.purpose !== purpose) return null;
-  if (record.used_at) return null;
-  if (record.expires_at <= new Date()) return null;
+  if (record.usedAt) return null;
+  if (record.expiresAt <= new Date()) return null;
 
   /*
     Shartli yangilash — poyga oldini oladi.
 
     Ikki so'rov bir vaqtda kelsa, ikkalasi ham yuqoridagi tekshiruvdan
-    o'tib ketishi mumkin. `used_at: null` sharti bilan yangilash esa
+    o'tib ketishi mumkin. `usedAt: null` sharti bilan yangilash esa
     faqat bittasiga tegadi.
   */
   const claimed = await prisma.verificationToken.updateMany({
-    where: { id: record.id, used_at: null },
-    data: { used_at: new Date() },
+    where: { id: record.id, usedAt: null },
+    data: { usedAt: new Date() },
   });
 
   if (claimed.count === 0) return null;
 
-  return { userId: record.user_id };
+  return { userId: record.userId };
 }
 
 /** Muddati o'tgan va ishlatilgan tokenlarni tozalaydi. */
 export async function purgeExpiredTokens(): Promise<number> {
   const result = await prisma.verificationToken.deleteMany({
     where: {
-      OR: [{ expires_at: { lt: new Date() } }, { used_at: { not: null } }],
+      OR: [{ expiresAt: { lt: new Date() } }, { usedAt: { not: null } }],
     },
   });
 

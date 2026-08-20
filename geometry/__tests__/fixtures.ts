@@ -1,6 +1,6 @@
 import type { Rect, RoomTypeRule, TreeNode } from '../types';
 
-/** Sinov uchun xona qoidalari — bazadagi `room_types` bilan bir xil shakl. */
+/** Sinov uchun xona qoidalari — bazadagi `roomTypes` bilan bir xil shakl. */
 export const RULES: Record<string, RoomTypeRule> = {
   living: {
     code: 'living',

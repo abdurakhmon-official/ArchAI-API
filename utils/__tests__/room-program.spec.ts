@@ -17,18 +17,18 @@ import {
 const type = (over: Partial<SelectableRoomType> = {}): SelectableRoomType => ({
   code: 'bedroom',
   selectable: true,
-  max_count: 8,
-  default_count: 2,
+  maxCount: 8,
+  defaultCount: 2,
   ...over,
 });
 
 const catalog: SelectableRoomType[] = [
   type(),
-  type({ code: 'living', max_count: 3, default_count: 1 }),
-  type({ code: 'bathroom', max_count: 5, default_count: 1 }),
-  type({ code: 'office', max_count: 3, default_count: 0 }),
+  type({ code: 'living', maxCount: 3, defaultCount: 1 }),
+  type({ code: 'bathroom', maxCount: 5, defaultCount: 1 }),
+  type({ code: 'office', maxCount: 3, defaultCount: 0 }),
   // Koridorni generator o'zi qo'yadi — foydalanuvchi so'ramaydi.
-  type({ code: 'corridor', selectable: false, max_count: 4, default_count: 0 }),
+  type({ code: 'corridor', selectable: false, maxCount: 4, defaultCount: 0 }),
 ];
 
 describe('validating the room programme', () => {
@@ -86,7 +86,7 @@ describe('the default set', () => {
   });
 
   it('returns empty for a catalogue with no defaults', () => {
-    const bare = catalog.map((row) => ({ ...row, default_count: 0 }));
+    const bare = catalog.map((row) => ({ ...row, defaultCount: 0 }));
 
     expect(defaultRoomProgram(bare)).toEqual({});
   });

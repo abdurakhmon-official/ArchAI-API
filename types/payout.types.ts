@@ -6,7 +6,7 @@ interface PayoutCardInput {
   last4: string;
   holder: string;
   expiry: string;
-  account_id: string;
+  accountId: string;
 }
 
 export type { PayoutCardInput };

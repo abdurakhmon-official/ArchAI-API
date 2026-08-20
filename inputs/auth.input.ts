@@ -1,22 +1,14 @@
 import { z } from 'zod';
 
-const COMMON_PASSWORDS = new Set([
-  '12345678', '123456789', '1234567890', 'password', 'password1', 'password123',
-  'qwerty123', 'qwertyui', '11111111', '00000000', 'iloveyou', 'admin123',
-  'welcome1', 'abc12345', 'letmein1', 'football', 'baseball', 'sunshine',
-  'princess', 'dragon123', 'monkey12', 'parol123', 'toshkent', 'uzbekistan',
-]);
-
+/**
+ * Length only. Strength (weak/breached) is checked by
+ * `PasswordSecurityService`, which zxcvbn-ts and HIBP do far better than
+ * a hardcoded list ever could.
+ */
 export const PasswordSchema = z
   .string()
-  .min(8, 'VALIDATION_PASSWORD_SHORT')
-  .max(128)
-  .refine((value) => !COMMON_PASSWORDS.has(value.toLowerCase()), {
-    message: 'VALIDATION_PASSWORD_COMMON',
-  })
-  .refine((value) => !/^(.)\1+$/.test(value), {
-    message: 'VALIDATION_PASSWORD_REPEATED',
-  });
+  .min(12, 'VALIDATION_PASSWORD_SHORT')
+  .max(128, 'VALIDATION_PASSWORD_LONG');
 
 function assertNotDerived(password: string, ...parts: (string | null | undefined)[]): boolean {
   const value = password.toLowerCase();
@@ -62,6 +54,12 @@ export const ForgotPasswordInputSchema = z.object({
   email: z.string().email(),
 });
 
+export const PasswordStrengthInputSchema = z.object({
+  password: z.string().max(128),
+  email: z.string().optional().nullable(),
+  fullName: z.string().optional().nullable(),
+});
+
 export const ResetPasswordInputSchema = z.object({
   token: z.string().min(10),
   newPassword: PasswordSchema,
@@ -72,4 +70,5 @@ export type SigninInput = z.infer<typeof SigninInputSchema>;
 export type UpdatePasswordInput = z.infer<typeof UpdatePasswordInputSchema>;
 export type UpdateProfileInput = z.infer<typeof UpdateProfileInputSchema>;
 export type ForgotPasswordInput = z.infer<typeof ForgotPasswordInputSchema>;
+export type PasswordStrengthInput = z.infer<typeof PasswordStrengthInputSchema>;
 export type ResetPasswordInput = z.infer<typeof ResetPasswordInputSchema>;

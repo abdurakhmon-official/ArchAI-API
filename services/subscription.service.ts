@@ -17,13 +17,13 @@ export class SubscriptionService {
   async current(userId: string) {
     const [subscription, payments] = await Promise.all([
       prisma.subscription.findFirst({
-        where: { user_id: userId, status: SUBSCRIPTION_STATUS.ACTIVE },
+        where: { userId: userId, status: SUBSCRIPTION_STATUS.ACTIVE },
         include: { plan: true },
-        orderBy: { created_at: 'desc' },
+        orderBy: { createdAt: 'desc' },
       }),
       prisma.payment.findMany({
-        where: { user_id: userId },
-        orderBy: { created_at: 'desc' },
+        where: { userId: userId },
+        orderBy: { createdAt: 'desc' },
         take: 20,
         select: {
           id: true,
@@ -31,8 +31,8 @@ export class SubscriptionService {
           amount: true,
           currency: true,
           status: true,
-          paid_at: true,
-          created_at: true,
+          paidAt: true,
+          createdAt: true,
         },
       }),
     ]);
@@ -54,22 +54,22 @@ export class SubscriptionService {
     if (!plan || !plan.active) throw new NotFound(`plan not found: ${planCode}`);
 
     await prisma.subscription.updateMany({
-      where: { user_id: userId, status: SUBSCRIPTION_STATUS.PENDING },
+      where: { userId: userId, status: SUBSCRIPTION_STATUS.PENDING },
       data: { status: SUBSCRIPTION_STATUS.CANCELED },
     });
 
     const subscription = await prisma.subscription.create({
       data: {
-        user_id: userId,
-        plan_id: plan.id,
+        userId: userId,
+        planId: plan.id,
         status: SUBSCRIPTION_STATUS.PENDING,
         provider,
-        auto_renew: false,
+        autoRenew: false,
       },
       include: { plan: true },
     });
 
-    return { subscription, plan, amount: Number(plan.price_uzs) * months, months };
+    return { subscription, plan, amount: Number(plan.priceUzs) * months, months };
   }
 
   async activate(subscriptionId: string, months: number) {
@@ -87,14 +87,14 @@ export class SubscriptionService {
 
     const existing = await prisma.subscription.findFirst({
       where: {
-        user_id: subscription.user_id,
+        userId: subscription.userId,
         status: SUBSCRIPTION_STATUS.ACTIVE,
-        period_end: { gt: now },
+        periodEnd: { gt: now },
       },
-      orderBy: { period_end: 'desc' },
+      orderBy: { periodEnd: 'desc' },
     });
 
-    const start = existing?.period_end ?? now;
+    const start = existing?.periodEnd ?? now;
     const end = new Date(start);
     end.setMonth(end.getMonth() + months);
 
@@ -103,8 +103,8 @@ export class SubscriptionService {
         where: { id: subscriptionId },
         data: {
           status: SUBSCRIPTION_STATUS.ACTIVE,
-          period_start: start,
-          period_end: end,
+          periodStart: start,
+          periodEnd: end,
         },
         include: { plan: true },
       }),
@@ -120,7 +120,7 @@ export class SubscriptionService {
 
     events.emit('subscription.activated', {
       subscriptionId: activated.id,
-      userId: activated.user_id,
+      userId: activated.userId,
       planCode: activated.plan.code,
     });
 
@@ -130,20 +130,20 @@ export class SubscriptionService {
   async cancel(userId: string, subscriptionId: string) {
     const subscription = await prisma.subscription.findUnique({ where: { id: subscriptionId } });
 
-    if (!subscription || subscription.user_id !== userId) {
+    if (!subscription || subscription.userId !== userId) {
       throw new NotFound('subscription not found');
     }
 
     const updated = await prisma.subscription.update({
       where: { id: subscriptionId },
-      data: { auto_renew: false },
+      data: { autoRenew: false },
     });
 
     return {
       success: true,
       _code: 'SUBSCRIPTION_UPDATED',
-      _message: `subscription runs until ${updated.period_end?.toISOString().slice(0, 10) ?? 'the end of the period'}`,
-      meta: { until: updated.period_end?.toISOString().slice(0, 10) ?? '' },
+      _message: `subscription runs until ${updated.periodEnd?.toISOString().slice(0, 10) ?? 'the end of the period'}`,
+      meta: { until: updated.periodEnd?.toISOString().slice(0, 10) ?? '' },
       data: updated,
     };
   }
@@ -159,21 +159,21 @@ export class SubscriptionService {
   }) {
     return prisma.payment.upsert({
       where: {
-        provider_external_id: { provider: input.provider, external_id: input.externalId },
+        provider_externalId: { provider: input.provider, externalId: input.externalId },
       },
       update: {
         status: input.status,
-        ...(input.status === PAYMENT_STATUS.PAID ? { paid_at: new Date() } : {}),
+        ...(input.status === PAYMENT_STATUS.PAID ? { paidAt: new Date() } : {}),
         raw: (input.raw ?? undefined) as Prisma.InputJsonValue,
       },
       create: {
-        user_id: input.userId,
-        subscription_id: input.subscriptionId,
+        userId: input.userId,
+        subscriptionId: input.subscriptionId,
         provider: input.provider,
-        external_id: input.externalId,
+        externalId: input.externalId,
         amount: input.amount,
         status: input.status,
-        ...(input.status === PAYMENT_STATUS.PAID ? { paid_at: new Date() } : {}),
+        ...(input.status === PAYMENT_STATUS.PAID ? { paidAt: new Date() } : {}),
         raw: (input.raw ?? undefined) as Prisma.InputJsonValue,
       },
     });
@@ -181,7 +181,7 @@ export class SubscriptionService {
 
   async findPayment(provider: PAYMENT_PROVIDER, externalId: string) {
     return prisma.payment.findUnique({
-      where: { provider_external_id: { provider, external_id: externalId } },
+      where: { provider_externalId: { provider, externalId: externalId } },
       include: { subscription: { include: { plan: true } } },
     });
   }

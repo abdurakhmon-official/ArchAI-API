@@ -35,17 +35,17 @@ export async function processRender(job: Job<RenderJob>): Promise<{ key: string;
 
   const existing = await prisma.projectExport.findUnique({
     where: {
-      project_id_kind_geometry_hash_watermark: {
-        project_id: projectId,
+      projectId_kind_geometryHash_watermark: {
+        projectId: projectId,
         kind: EXPORT_KIND.RENDER,
-        geometry_hash: hash,
+        geometryHash: hash,
         watermark: false,
       },
     },
   });
 
-  if (existing && (!existing.expires_at || existing.expires_at > new Date())) {
-    return { key: existing.storage_key, cached: true };
+  if (existing && (!existing.expiresAt || existing.expiresAt > new Date())) {
+    return { key: existing.storageKey, cached: true };
   }
 
   await job.updateProgress(15);
@@ -64,22 +64,22 @@ export async function processRender(job: Job<RenderJob>): Promise<{ key: string;
 
   await prisma.projectExport.upsert({
     where: {
-      project_id_kind_geometry_hash_watermark: {
-        project_id: projectId,
+      projectId_kind_geometryHash_watermark: {
+        projectId: projectId,
         kind: EXPORT_KIND.RENDER,
-        geometry_hash: hash,
+        geometryHash: hash,
         watermark: false,
       },
     },
-    update: { storage_key: key, size_bytes: png.byteLength, expires_at: expiresAt },
+    update: { storageKey: key, sizeBytes: png.byteLength, expiresAt: expiresAt },
     create: {
-      project_id: projectId,
+      projectId: projectId,
       kind: EXPORT_KIND.RENDER,
-      storage_key: key,
-      geometry_hash: hash,
+      storageKey: key,
+      geometryHash: hash,
       watermark: false,
-      size_bytes: png.byteLength,
-      expires_at: expiresAt,
+      sizeBytes: png.byteLength,
+      expiresAt: expiresAt,
     },
   });
 
@@ -98,10 +98,10 @@ async function buildMeshFor(
 }> {
   const project = await prisma.project.findUnique({
     where: { id: projectId },
-    include: { style: { include: { roof_style: true } } },
+    include: { style: { include: { roofStyle: true } } },
   });
 
-  if (!project || project.deleted_at) throw new Error(`project not found: ${projectId}`);
+  if (!project || project.deletedAt) throw new Error(`project not found: ${projectId}`);
 
   const roomTypes = await prisma.roomType.findMany();
   const rules = Object.fromEntries(roomTypes.map((row) => [row.code, toRule(row)]));
@@ -153,7 +153,7 @@ function appearanceOf(style: StyleRow | null): StyleAppearance | null {
     facade: (style.facade ?? {}) as StyleAppearance['facade'],
     interior: (style.interior ?? {}) as StyleAppearance['interior'],
     window: (style.window ?? {}) as StyleAppearance['window'],
-    roofColor: style.roof_style?.color ?? roof.color ?? null,
+    roofColor: style.roofStyle?.color ?? roof.color ?? null,
   };
 }
 
@@ -162,7 +162,7 @@ interface StyleRow {
   facade: unknown;
   window: unknown;
   interior: unknown;
-  roof_style?: { color: string | null } | null;
+  roofStyle?: { color: string | null } | null;
 }
 
 async function renderMesh(

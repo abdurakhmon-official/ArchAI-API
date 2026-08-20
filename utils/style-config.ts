@@ -2,15 +2,15 @@ import type { StyleConfig, StyleRow } from '@/types/style.types';
 import { DEFAULT_LAYOUT_RULES, type LayoutRules, type RoofSpec } from '@/geometry/types';
 
 function roofSpecOf(style: StyleRow): RoofSpec {
-  const preset = style.roof_style;
+  const preset = style.roofStyle;
 
   if (preset) {
     return {
       type: preset.family,
       pitch: preset.pitch,
       overhang: preset.overhang,
-      ...(preset.upper_pitch !== null ? { upperPitch: preset.upper_pitch } : {}),
-      ...(preset.break_ratio !== null ? { breakRatio: preset.break_ratio } : {}),
+      ...(preset.upperPitch !== null ? { upperPitch: preset.upperPitch } : {}),
+      ...(preset.breakRatio !== null ? { breakRatio: preset.breakRatio } : {}),
     };
   }
 
@@ -27,7 +27,7 @@ function roofSpecOf(style: StyleRow): RoofSpec {
 
 function toConfig(style: StyleRow): StyleConfig {
   const interior = (style.interior ?? {}) as { ceilingHeight?: number };
-  const layout = (style.layout_rules ?? {}) as Partial<LayoutRules>;
+  const layout = (style.layoutRules ?? {}) as Partial<LayoutRules>;
   const window = (style.window ?? {}) as { wallAreaRatio?: number };
 
   return {

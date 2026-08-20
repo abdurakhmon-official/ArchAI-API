@@ -12,5 +12,6 @@ export * from "./estimate.input";
 export * from "./generation.input";
 export * from "./geometry.input";
 export * from "./media.input";
+export * from "./price-profile.input";
 export * from "./project.input";
 export * from "./user.input";

@@ -21,10 +21,10 @@ export async function recordAudit(entry: AuditEntry): Promise<void> {
   try {
     await prisma.auditLog.create({
       data: {
-        actor_id: entry.actorId,
+        actorId: entry.actorId,
         action: entry.action,
         entity: entry.entity,
-        entity_id: entry.entityId ?? null,
+        entityId: entry.entityId ?? null,
         diff: (entry.diff ?? null) as never,
       },
     });
@@ -42,7 +42,7 @@ export function diffOf(
   const changes: Record<string, { from: unknown; to: unknown }> = {};
 
   for (const key of new Set([...Object.keys(before), ...Object.keys(after)])) {
-    if (key === 'updated_at' || key === 'created_at') continue;
+    if (key === 'updatedAt' || key === 'createdAt') continue;
 
     const from = before[key];
     const to = after[key];

@@ -32,11 +32,11 @@ const LIST_SELECT = {
   id: true,
   title: true,
   note: true,
-  cover_svg: true,
-  estimate_total: true,
-  finish_level: true,
-  created_at: true,
-  updated_at: true,
+  coverSvg: true,
+  estimateTotal: true,
+  finishLevel: true,
+  createdAt: true,
+  updatedAt: true,
   style: { select: { slug: true, name: true } },
 };
 
@@ -55,8 +55,8 @@ export class ProjectService {
     const query = ListProjectsInputSchema.parse(input);
 
     const where: Prisma.ProjectWhereInput = {
-      user_id: userId,
-      deleted_at: null,
+      userId: userId,
+      deletedAt: null,
       ...(query.search
         ? { title: { contains: query.search, mode: Prisma.QueryMode.insensitive } }
         : {}),
@@ -83,7 +83,7 @@ export class ProjectService {
   /**
    * Barcha loyihalar — faqat admin uchun.
    *
-   * `list` dan alohida turadi va bu ataylab: u yerda `user_id` filtri
+   * `list` dan alohida turadi va bu ataylab: u yerda `userId` filtri
    * QAT'IY, ya'ni tasodifan olib tashlash mumkin emas. Bitta funksiyaga
    * "admin bo'lsa filtrsiz" degan shart qo'shilsa, kelajakdagi bir
    * o'zgarish oddiy foydalanuvchiga hammaning loyihasini ochib
@@ -96,8 +96,8 @@ export class ProjectService {
     const query = ListAllProjectsInputSchema.parse(input);
 
     const where: Prisma.ProjectWhereInput = {
-      ...(query.deleted === 'exclude' ? { deleted_at: null } : {}),
-      ...(query.deleted === 'only' ? { NOT: { deleted_at: null } } : {}),
+      ...(query.deleted === 'exclude' ? { deletedAt: null } : {}),
+      ...(query.deleted === 'only' ? { NOT: { deletedAt: null } } : {}),
       ...(query.search
         ? {
             OR: [
@@ -114,7 +114,7 @@ export class ProjectService {
         where,
         select: {
           ...LIST_SELECT,
-          deleted_at: true,
+          deletedAt: true,
           user: { select: { id: true, fullName: true, email: true } },
         },
         orderBy: { [query.sortBy]: query.order },
@@ -137,8 +137,8 @@ export class ProjectService {
       include: { style: { select: { slug: true, name: true } } },
     });
 
-    if (!project || project.deleted_at) throw notFound('PROJECT_NOT_FOUND', 'project not found');
-    if (project.user_id !== userId && !isAdmin) throw forbidden('PROJECT_NOT_OWNER', 'this project belongs to someone else');
+    if (!project || project.deletedAt) throw notFound('PROJECT_NOT_FOUND', 'project not found');
+    if (project.userId !== userId && !isAdmin) throw forbidden('PROJECT_NOT_OWNER', 'this project belongs to someone else');
 
     return { success: true, data: project };
   }
@@ -158,23 +158,23 @@ export class ProjectService {
 
     const project = await prisma.project.create({
       data: {
-        user_id: userId,
-        style_id: style?.id ?? null,
-        skeleton_id: data.skeletonId ?? null,
+        userId: userId,
+        styleId: style?.id ?? null,
+        skeletonId: data.skeletonId ?? null,
         title: data.title,
         note: data.note ?? null,
         params: data.params as object,
         geometry: data.geometry as object,
         estimate: outcome.estimate as unknown as object,
-        estimate_total: outcome.estimate.total,
-        estimate_selection: selectionOrNull(data.selection),
-        finish_level: data.finishLevel,
-        cover_svg: outcome.coverSvg,
+        estimateTotal: outcome.estimate.total,
+        estimateSelection: this.selectionOrNull(data.selection),
+        finishLevel: data.finishLevel,
+        coverSvg: outcome.coverSvg,
         versions: {
           create: {
             geometry: data.geometry as object,
             params: data.params as object,
-            estimate_total: outcome.estimate.total,
+            estimateTotal: outcome.estimate.total,
             label: 'boshlang\'ich',
           },
         },
@@ -196,8 +196,8 @@ export class ProjectService {
     const existing = await this.owned(userId, id);
 
     const geometry = (data.geometry ?? existing.geometry) as GeometryState;
-    const finishLevel = data.finishLevel ?? existing.finish_level;
-    const selection = data.selection ?? ((existing.estimate_selection ?? {}) as EstimateSelection);
+    const finishLevel = data.finishLevel ?? existing.finishLevel;
+    const selection = data.selection ?? ((existing.estimateSelection ?? {}) as EstimateSelection);
 
     /**
      * Smeta qachon qayta hisoblanadi.
@@ -209,7 +209,7 @@ export class ProjectService {
     const needsRecompute =
       data.geometry !== undefined ||
       data.selection !== undefined ||
-      finishLevel !== existing.finish_level;
+      finishLevel !== existing.finishLevel;
 
     const outcome = needsRecompute
       ? await this.geometryService.evaluate(geometry, finishLevel, selection)
@@ -221,15 +221,15 @@ export class ProjectService {
         ...(data.title !== undefined ? { title: data.title } : {}),
         ...(data.note !== undefined ? { note: data.note } : {}),
         ...(data.selection !== undefined
-          ? { estimate_selection: selectionOrNull(data.selection) }
+          ? { estimateSelection: this.selectionOrNull(data.selection) }
           : {}),
         ...(outcome
           ? {
               geometry: geometry as unknown as object,
               estimate: outcome.estimate as unknown as object,
-              estimate_total: outcome.estimate.total,
-              cover_svg: outcome.coverSvg,
-              finish_level: finishLevel,
+              estimateTotal: outcome.estimate.total,
+              coverSvg: outcome.coverSvg,
+              finishLevel: finishLevel,
             }
           : {}),
         ...(data.geometry
@@ -238,7 +238,7 @@ export class ProjectService {
                 create: {
                   geometry: geometry as unknown as object,
                   params: existing.params as object,
-                  estimate_total: outcome?.estimate.total ?? existing.estimate_total,
+                  estimateTotal: outcome?.estimate.total ?? existing.estimateTotal,
                   label: data.versionLabel ?? null,
                 },
               },
@@ -267,16 +267,16 @@ export class ProjectService {
 
     const outcome = await this.geometryService.evaluate(
       existing.geometry as GeometryState,
-      existing.finish_level,
+      existing.finishLevel,
       data.selection,
     );
 
     const project = await prisma.project.update({
       where: { id },
       data: {
-        estimate_selection: selectionOrNull(data.selection),
+        estimateSelection: this.selectionOrNull(data.selection),
         estimate: outcome.estimate as unknown as object,
-        estimate_total: outcome.estimate.total,
+        estimateTotal: outcome.estimate.total,
       },
       include: { style: { select: { slug: true, name: true } } },
     });
@@ -288,9 +288,9 @@ export class ProjectService {
     await this.owned(userId, id);
 
     const items = await prisma.projectVersion.findMany({
-      where: { project_id: id },
-      orderBy: { created_at: 'desc' },
-      select: { id: true, label: true, estimate_total: true, created_at: true },
+      where: { projectId: id },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, label: true, estimateTotal: true, createdAt: true },
     });
 
     return { success: true, data: items };
@@ -300,7 +300,7 @@ export class ProjectService {
     await this.owned(userId, id);
 
     const version = await prisma.projectVersion.findUnique({ where: { id: versionId } });
-    if (!version || version.project_id !== id) throw notFound('PROJECT_VERSION_NOT_FOUND', 'version not found');
+    if (!version || version.projectId !== id) throw notFound('PROJECT_VERSION_NOT_FOUND', 'version not found');
 
     return this.update(userId, id, {
       geometry: version.geometry as GeometryState,
@@ -318,16 +318,16 @@ export class ProjectService {
   async delete(userId: string, id: string, isAdmin = false) {
     const project = await this.owned(userId, id, isAdmin);
 
-    await prisma.project.update({ where: { id }, data: { deleted_at: new Date() } });
-    events.emit('project.deleted', { projectId: id, userId: project.user_id });
+    await prisma.project.update({ where: { id }, data: { deletedAt: new Date() } });
+    events.emit('project.deleted', { projectId: id, userId: project.userId });
 
-    if (isAdmin && project.user_id !== userId) {
+    if (isAdmin && project.userId !== userId) {
       await recordAudit({
         actorId: userId,
         action: 'delete',
         entity: 'project',
         entityId: id,
-        diff: { owner: project.user_id, title: project.title },
+        diff: { owner: project.userId, title: project.title },
       });
     }
 
@@ -342,19 +342,19 @@ export class ProjectService {
     const project = await prisma.project.findUnique({ where: { id } });
 
     if (!project) throw notFound('PROJECT_NOT_FOUND', 'project not found');
-    if (project.user_id !== userId && !isAdmin) {
+    if (project.userId !== userId && !isAdmin) {
       throw forbidden('PROJECT_NOT_OWNER', 'this project belongs to someone else');
     }
-    if (!project.deleted_at) return { success: true, _code: 'PROJECT_NOT_DELETED', _message: 'project is not deleted' };
+    if (!project.deletedAt) return { success: true, _code: 'PROJECT_NOT_DELETED', _message: 'project is not deleted' };
 
-    const deadline = new Date(project.deleted_at);
+    const deadline = new Date(project.deletedAt);
     deadline.setDate(deadline.getDate() + RESTORE_WINDOW_DAYS);
 
     if (deadline < new Date()) {
       throw notFound('PROJECT_RESTORE_EXPIRED', 'the restore window for this project has passed');
     }
 
-    const restored = await prisma.project.update({ where: { id }, data: { deleted_at: null } });
+    const restored = await prisma.project.update({ where: { id }, data: { deletedAt: null } });
     return { success: true, _code: 'PROJECT_RESTORED', _message: 'project restored', data: restored };
   }
 
@@ -363,15 +363,15 @@ export class ProjectService {
 
     const outcome = await this.geometryService.evaluate(
       existing.geometry as GeometryState,
-      existing.finish_level,
-      (existing.estimate_selection ?? {}) as EstimateSelection,
+      existing.finishLevel,
+      (existing.estimateSelection ?? {}) as EstimateSelection,
     );
 
     const project = await prisma.project.update({
       where: { id },
       data: {
         estimate: outcome.estimate as unknown as object,
-        estimate_total: outcome.estimate.total,
+        estimateTotal: outcome.estimate.total,
       },
     });
 
@@ -458,10 +458,10 @@ export class ProjectService {
     const project = await this.owned(userId, id);
 
     const token =
-      project.share_token ?? randomBytes(12).toString('base64url');
+      project.shareToken ?? randomBytes(12).toString('base64url');
 
-    if (!project.share_token) {
-      await prisma.project.update({ where: { id }, data: { share_token: token } });
+    if (!project.shareToken) {
+      await prisma.project.update({ where: { id }, data: { shareToken: token } });
     }
 
     return { success: true, _code: 'PROJECT_SHARED', _message: 'share link ready', data: { token } };
@@ -470,7 +470,7 @@ export class ProjectService {
   /** Havolani o'chiradi — yuborilgan havola darhol ishlamay qoladi. */
   async unshare(userId: string, id: string) {
     await this.owned(userId, id);
-    await prisma.project.update({ where: { id }, data: { share_token: null } });
+    await prisma.project.update({ where: { id }, data: { shareToken: null } });
 
     return { success: true, _code: 'PROJECT_UNSHARED', _message: 'share link removed' };
   }
@@ -483,54 +483,54 @@ export class ProjectService {
    */
   async byShareToken(token: string) {
     const project = await prisma.project.findUnique({
-      where: { share_token: token },
+      where: { shareToken: token },
       select: {
         title: true,
         note: true,
         geometry: true,
         params: true,
         estimate: true,
-        estimate_total: true,
-        finish_level: true,
-        cover_svg: true,
-        created_at: true,
+        estimateTotal: true,
+        finishLevel: true,
+        coverSvg: true,
+        createdAt: true,
         style: { select: { slug: true, name: true } },
-        deleted_at: true,
+        deletedAt: true,
       },
     });
 
-    if (!project || project.deleted_at) throw notFound('PROJECT_SHARE_NOT_FOUND', 'shared project not found');
+    if (!project || project.deletedAt) throw notFound('PROJECT_SHARE_NOT_FOUND', 'shared project not found');
 
-    const { deleted_at: _ignored, ...data } = project;
+    const { deletedAt: _ignored, ...data } = project;
     return { success: true, data };
   }
 
   private async owned(userId: string, id: string, isAdmin = false) {
     const project = await prisma.project.findUnique({ where: { id } });
 
-    if (!project || project.deleted_at) throw notFound('PROJECT_NOT_FOUND', 'project not found');
-    if (project.user_id !== userId && !isAdmin) {
+    if (!project || project.deletedAt) throw notFound('PROJECT_NOT_FOUND', 'project not found');
+    if (project.userId !== userId && !isAdmin) {
       throw forbidden('PROJECT_NOT_OWNER', 'this project belongs to someone else');
     }
 
     return project;
   }
-}
 
-/**
- * Bo'sh tanlovni `null` sifatida yozamiz.
- *
- * Prisma'da `Json?` ustuniga `null` berish taqiqlangan — `Prisma.DbNull`
- * kerak. Bo'sh obyektni saqlash ham mumkin edi, lekin u holda "tanlov
- * yo'q" va "hamma tanlov bekor qilindi" bir xil ko'rinardi va
- * `exportHashOf` ikkalasini ajrata olmasdi.
- */
-function selectionOrNull(
-  selection: EstimateSelection | undefined,
-): Prisma.NullableJsonNullValueInput | Prisma.InputJsonValue {
-  // Prisma `InputJsonValue` indeks imzosi bo'lgan tipni qabul qilmaydi,
-  // shuning uchun bu yerda aniq o'girish kerak.
-  return selection && Object.keys(selection).length > 0
-    ? (selection as Prisma.InputJsonValue)
-    : Prisma.DbNull;
+  /**
+   * Bo'sh tanlovni `null` sifatida yozamiz.
+   *
+   * Prisma'da `Json?` ustuniga `null` berish taqiqlangan — `Prisma.DbNull`
+   * kerak. Bo'sh obyektni saqlash ham mumkin edi, lekin u holda "tanlov
+   * yo'q" va "hamma tanlov bekor qilindi" bir xil ko'rinardi va
+   * `exportHashOf` ikkalasini ajrata olmasdi.
+   */
+  private selectionOrNull(
+    selection: EstimateSelection | undefined,
+  ): Prisma.NullableJsonNullValueInput | Prisma.InputJsonValue {
+    // Prisma `InputJsonValue` indeks imzosi bo'lgan tipni qabul qilmaydi,
+    // shuning uchun bu yerda aniq o'girish kerak.
+    return selection && Object.keys(selection).length > 0
+      ? (selection as Prisma.InputJsonValue)
+      : Prisma.DbNull;
+  }
 }

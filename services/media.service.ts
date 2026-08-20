@@ -22,10 +22,10 @@ export class MediaService {
         type: input.type,
         url: input.url,
         key: input.key,
-        original_name: input.originalName,
-        mime_type: input.mimeType,
+        originalName: input.originalName,
+        mimeType: input.mimeType,
         size: input.size,
-        uploaded_by: this.user?.id ?? null,
+        uploadedBy: this.user?.id ?? null,
       },
     });
 
@@ -39,7 +39,7 @@ export class MediaService {
     const where: Prisma.MediaWhereInput = {
       ...(query.type ? { type: query.type } : {}),
       ...(query.search
-        ? { original_name: { contains: query.search, mode: Prisma.QueryMode.insensitive } }
+        ? { originalName: { contains: query.search, mode: Prisma.QueryMode.insensitive } }
         : {}),
     };
 
@@ -50,7 +50,7 @@ export class MediaService {
         // degan savol birinchi bo'lib tug'iladi, va uni javobsiz
         // qoldirish faylni o'chirishga qo'rqinchli qiladi.
         include: { uploader: { select: { fullName: true, email: true } } },
-        orderBy: { created_at: 'desc' },
+        orderBy: { createdAt: 'desc' },
         skip: (page - 1) * limit,
         take: limit,
       }),
@@ -76,7 +76,7 @@ export class MediaService {
     if (!media) throw notFound('MEDIA_NOT_FOUND', 'media not found');
 
     const user = this.user;
-    const isOwner = media.uploaded_by && media.uploaded_by === user?.id;
+    const isOwner = media.uploadedBy && media.uploadedBy === user?.id;
     const isAdmin = user?.role === USER_ROLE.ADMIN;
 
     if (!isOwner && !isAdmin) {
@@ -94,8 +94,8 @@ export class MediaService {
     deadline.setDate(deadline.getDate() - olderThanDays);
 
     const candidates = await prisma.media.findMany({
-      where: { created_at: { lt: deadline } },
-      select: { id: true, url: true, key: true, size: true, original_name: true },
+      where: { createdAt: { lt: deadline } },
+      select: { id: true, url: true, key: true, size: true, originalName: true },
     });
 
     if (candidates.length === 0) return { success: true, data: [] };
@@ -104,19 +104,19 @@ export class MediaService {
 
     const [furniture, styles, posts, avatars] = await Promise.all([
       prisma.furnitureAsset.findMany({
-        where: { OR: [{ gltf_url: { in: urls } }, { thumb_url: { in: urls } }] },
-        select: { gltf_url: true, thumb_url: true },
+        where: { OR: [{ gltfUrl: { in: urls } }, { thumbUrl: { in: urls } }] },
+        select: { gltfUrl: true, thumbUrl: true },
       }),
-      prisma.style.findMany({ where: { preview_url: { in: urls } }, select: { preview_url: true } }),
-      prisma.blogPost.findMany({ where: { cover_url: { in: urls } }, select: { cover_url: true } }),
+      prisma.style.findMany({ where: { previewUrl: { in: urls } }, select: { previewUrl: true } }),
+      prisma.blogPost.findMany({ where: { coverUrl: { in: urls } }, select: { coverUrl: true } }),
       prisma.user.findMany({ where: { avatar: { in: urls } }, select: { avatar: true } }),
     ]);
 
     const used = new Set<string>(
       [
-        ...furniture.flatMap((row) => [row.gltf_url, row.thumb_url]),
-        ...styles.map((row) => row.preview_url),
-        ...posts.map((row) => row.cover_url),
+        ...furniture.flatMap((row) => [row.gltfUrl, row.thumbUrl]),
+        ...styles.map((row) => row.previewUrl),
+        ...posts.map((row) => row.coverUrl),
         ...avatars.map((row) => row.avatar),
       ].filter((value): value is string => Boolean(value)),
     );

@@ -5,7 +5,7 @@ import {
   USER_ROLE,
   CONTENT_STATUS,
 } from '../generated/prisma';
-import bcrypt from 'bcrypt';
+import { hashPassword } from '../modules/auth';
 
 const prisma = new PrismaClient();
 
@@ -16,139 +16,139 @@ const ROOM_TYPES = [
   {
     code: 'living',
     selectable: true,
-    max_count: 3,
-    default_count: 1,
+    maxCount: 3,
+    defaultCount: 1,
     name: t('Mehmonxona', 'Гостиная', 'Living room'),
-    min_area: 16,
-    max_area: 45,
-    ideal_ratio: 1.5,
-    needs_exterior_wall: true,
-    is_wet_zone: false,
-    access_from: [] as string[],
-    furniture_tags: ['sofa', 'coffee_table', 'tv_stand'],
+    minArea: 16,
+    maxArea: 45,
+    idealRatio: 1.5,
+    needsExteriorWall: true,
+    isWetZone: false,
+    accessFrom: [] as string[],
+    furnitureTags: ['sofa', 'coffee_table', 'tv_stand'],
     sort: 1,
   },
   {
     code: 'bedroom',
     selectable: true,
-    max_count: 8,
-    default_count: 2,
+    maxCount: 8,
+    defaultCount: 2,
     name: t('Yotoqxona', 'Спальня', 'Bedroom'),
-    min_area: 9,
-    max_area: 25,
-    ideal_ratio: 1.3,
-    needs_exterior_wall: true,
-    is_wet_zone: false,
-    access_from: ['corridor', 'hall', 'living'],
-    furniture_tags: ['bed', 'wardrobe', 'nightstand'],
+    minArea: 9,
+    maxArea: 25,
+    idealRatio: 1.3,
+    needsExteriorWall: true,
+    isWetZone: false,
+    accessFrom: ['corridor', 'hall', 'living'],
+    furnitureTags: ['bed', 'wardrobe', 'nightstand'],
     sort: 2,
   },
   {
     code: 'kitchen',
     name: t('Oshxona', 'Кухня', 'Kitchen'),
-    min_area: 8,
-    max_area: 20,
-    ideal_ratio: 1.4,
-    needs_exterior_wall: true,
-    is_wet_zone: true,
-    access_from: [],
-    furniture_tags: ['kitchen_set', 'dining_table'],
+    minArea: 8,
+    maxArea: 20,
+    idealRatio: 1.4,
+    needsExteriorWall: true,
+    isWetZone: true,
+    accessFrom: [],
+    furnitureTags: ['kitchen_set', 'dining_table'],
     sort: 3,
   },
   {
     code: 'bathroom',
     selectable: true,
-    max_count: 5,
-    default_count: 1,
+    maxCount: 5,
+    defaultCount: 1,
     name: t('Sanuzel', 'Санузел', 'Bathroom'),
-    min_area: 3,
-    max_area: 8,
-    ideal_ratio: 1.5,
-    needs_exterior_wall: false,
-    is_wet_zone: true,
+    minArea: 3,
+    maxArea: 8,
+    idealRatio: 1.5,
+    needsExteriorWall: false,
+    isWetZone: true,
     // Yotoqxona orqali kirilmasin — bu eng ko'p uchraydigan reja xatosi.
-    access_from: ['corridor', 'hall', 'living'],
-    furniture_tags: ['toilet', 'shower', 'sink'],
+    accessFrom: ['corridor', 'hall', 'living'],
+    furnitureTags: ['toilet', 'shower', 'sink'],
     sort: 4,
   },
   {
     code: 'corridor',
     name: t('Koridor', 'Коридор', 'Corridor'),
-    min_area: 3,
-    max_area: 20,
+    minArea: 3,
+    maxArea: 20,
     // Koridor tabiatan cho'ziq: haqiqiy koridor 1.4 × 8 m bo'lishi normal.
     // Tekshiruvda ruxsat etilgan chegara shundan hisoblanadi (ideal × 2).
-    ideal_ratio: 5,
-    needs_exterior_wall: false,
-    is_wet_zone: false,
-    access_from: [],
-    furniture_tags: [],
+    idealRatio: 5,
+    needsExteriorWall: false,
+    isWetZone: false,
+    accessFrom: [],
+    furnitureTags: [],
     sort: 5,
   },
   {
     code: 'hall',
     name: t('Kirish xonasi', 'Прихожая', 'Hall'),
-    min_area: 4,
-    max_area: 15,
-    ideal_ratio: 2,
-    needs_exterior_wall: false,
-    is_wet_zone: false,
-    access_from: [],
-    furniture_tags: ['shoe_rack', 'coat_rack'],
+    minArea: 4,
+    maxArea: 15,
+    idealRatio: 2,
+    needsExteriorWall: false,
+    isWetZone: false,
+    accessFrom: [],
+    furnitureTags: ['shoe_rack', 'coat_rack'],
     sort: 6,
   },
   {
     code: 'dining',
     selectable: true,
-    max_count: 2,
-    default_count: 0,
+    maxCount: 2,
+    defaultCount: 0,
     name: t('Ovqatlanish xonasi', 'Столовая', 'Dining room'),
-    min_area: 10,
-    max_area: 30,
-    ideal_ratio: 1.4,
-    needs_exterior_wall: true,
-    is_wet_zone: false,
-    access_from: [],
-    furniture_tags: ['dining_table', 'chairs'],
+    minArea: 10,
+    maxArea: 30,
+    idealRatio: 1.4,
+    needsExteriorWall: true,
+    isWetZone: false,
+    accessFrom: [],
+    furnitureTags: ['dining_table', 'chairs'],
     sort: 7,
   },
   {
     code: 'office',
     selectable: true,
-    max_count: 3,
-    default_count: 0,
+    maxCount: 3,
+    defaultCount: 0,
     name: t('Ish xonasi', 'Кабинет', 'Office'),
-    min_area: 7,
-    max_area: 20,
-    ideal_ratio: 1.3,
-    needs_exterior_wall: true,
-    is_wet_zone: false,
-    access_from: ['corridor', 'hall', 'living'],
-    furniture_tags: ['desk', 'bookshelf'],
+    minArea: 7,
+    maxArea: 20,
+    idealRatio: 1.3,
+    needsExteriorWall: true,
+    isWetZone: false,
+    accessFrom: ['corridor', 'hall', 'living'],
+    furnitureTags: ['desk', 'bookshelf'],
     sort: 8,
   },
   {
     code: 'laundry',
     name: t('Kir yuvish xonasi', 'Прачечная', 'Laundry'),
-    min_area: 3,
-    max_area: 10,
-    ideal_ratio: 1.6,
-    needs_exterior_wall: false,
-    is_wet_zone: true,
-    access_from: ['corridor', 'hall', 'kitchen'],
-    furniture_tags: ['washer'],
+    minArea: 3,
+    maxArea: 10,
+    idealRatio: 1.6,
+    needsExteriorWall: false,
+    isWetZone: true,
+    accessFrom: ['corridor', 'hall', 'kitchen'],
+    furnitureTags: ['washer'],
     sort: 9,
   },
   {
     code: 'storage',
     name: t('Omborxona', 'Кладовая', 'Storage'),
-    min_area: 2,
-    max_area: 12,
-    ideal_ratio: 2,
-    needs_exterior_wall: false,
-    is_wet_zone: false,
-    access_from: [],
-    furniture_tags: ['shelving'],
+    minArea: 2,
+    maxArea: 12,
+    idealRatio: 2,
+    needsExteriorWall: false,
+    isWetZone: false,
+    accessFrom: [],
+    furnitureTags: ['shelving'],
     sort: 10,
   },
 ];
@@ -220,8 +220,8 @@ const ROOF_STYLES = [
     family: ROOF_FAMILY.mansard,
     pitch: 65,
     // Pastki qism tik, yuqorisi yotiq — tom ostida yashash mumkin.
-    upper_pitch: 25,
-    break_ratio: 0.55,
+    upperPitch: 25,
+    breakRatio: 0.55,
     overhang: 0.5,
     color: '#4A3B2F',
     covering: 'yumshoq',
@@ -232,8 +232,8 @@ const ROOF_STYLES = [
     name: t('Baland mansard', 'Высокая мансарда', 'Steep mansard'),
     family: ROOF_FAMILY.mansard,
     pitch: 70,
-    upper_pitch: 20,
-    break_ratio: 0.7,
+    upperPitch: 20,
+    breakRatio: 0.7,
     overhang: 0.6,
     color: '#2F3A34',
     covering: 'cherepitsa',
@@ -268,7 +268,7 @@ const STYLES = [
       floorByRoomType: { living: 'laminate', bedroom: 'laminate', kitchen: 'tile', bathroom: 'tile' },
       skirting: '#FFFFFF',
     },
-    layout_rules: { corridorWidth: 1.5, openKitchen: true, minAreaFactor: 1 },
+    layoutRules: { corridorWidth: 1.5, openKitchen: true, minAreaFactor: 1 },
   },
   {
     slug: 'classic',
@@ -287,7 +287,7 @@ const STYLES = [
       floorByRoomType: { living: 'parquet', bedroom: 'parquet', kitchen: 'tile', bathroom: 'tile' },
       skirting: '#FFFFFF',
     },
-    layout_rules: { corridorWidth: 1.4, openKitchen: false, minAreaFactor: 1.05 },
+    layoutRules: { corridorWidth: 1.4, openKitchen: false, minAreaFactor: 1.05 },
   },
   {
     slug: 'minimalist',
@@ -306,7 +306,7 @@ const STYLES = [
       floorByRoomType: { living: 'concrete', bedroom: 'laminate', kitchen: 'tile', bathroom: 'tile' },
       skirting: '#F0F0F0',
     },
-    layout_rules: { corridorWidth: 1.3, openKitchen: true, minAreaFactor: 0.95 },
+    layoutRules: { corridorWidth: 1.3, openKitchen: true, minAreaFactor: 0.95 },
   },
   {
     slug: 'loft',
@@ -325,7 +325,7 @@ const STYLES = [
       floorByRoomType: { living: 'concrete', bedroom: 'concrete', kitchen: 'concrete', bathroom: 'tile' },
       skirting: '#2E2E30',
     },
-    layout_rules: { corridorWidth: 1.6, openKitchen: true, minAreaFactor: 1.1 },
+    layoutRules: { corridorWidth: 1.6, openKitchen: true, minAreaFactor: 1.1 },
   },
 ];
 
@@ -334,33 +334,33 @@ const STYLES = [
  * ko'rsatadi; `geometry/measure.ts` shu kalitlarni qaytaradi.
  */
 const PRICE_ITEMS = [
-  { code: 'foundation_strip', category: PRICE_CATEGORY.FOUNDATION, name: t('Lentali poydevor', 'Ленточный фундамент', 'Strip foundation'), unit: 'm³', unit_price: 1_450_000, measure: 'FOUNDATION_VOLUME', sort: 1 },
-  { code: 'wall_exterior', category: PRICE_CATEGORY.WALLS, name: t('Tashqi devor (g\'isht)', 'Наружная стена', 'Exterior wall'), unit: 'm²', unit_price: 620_000, measure: 'EXTERIOR_WALL_AREA', sort: 2 },
-  { code: 'wall_interior', category: PRICE_CATEGORY.WALLS, name: t('Ichki devor', 'Внутренняя стена', 'Interior wall'), unit: 'm²', unit_price: 310_000, measure: 'INTERIOR_WALL_AREA', sort: 3 },
-  { code: 'roof_cover', category: PRICE_CATEGORY.ROOF, name: t('Tom qoplamasi', 'Кровельное покрытие', 'Roof covering'), unit: 'm²', unit_price: 480_000, measure: 'ROOF_AREA', sort: 4 },
-  { code: 'window_unit', category: PRICE_CATEGORY.WINDOWS_DOORS, name: t('Deraza', 'Окно', 'Window'), unit: 'dona', unit_price: 2_100_000, measure: 'WINDOW_COUNT', sort: 5 },
-  { code: 'door_unit', category: PRICE_CATEGORY.WINDOWS_DOORS, name: t('Eshik', 'Дверь', 'Door'), unit: 'dona', unit_price: 1_350_000, measure: 'DOOR_COUNT', sort: 6 },
-  { code: 'floor_finish', category: PRICE_CATEGORY.FINISHING, name: t('Pol pardozi', 'Отделка пола', 'Floor finishing'), unit: 'm²', unit_price: 340_000, measure: 'FLOOR_AREA', sort: 7 },
-  { code: 'ceiling_finish', category: PRICE_CATEGORY.FINISHING, name: t('Shift pardozi', 'Отделка потолка', 'Ceiling finishing'), unit: 'm²', unit_price: 190_000, measure: 'CEILING_AREA', sort: 8 },
-  { code: 'wall_finish', category: PRICE_CATEGORY.FINISHING, name: t('Devor pardozi', 'Отделка стен', 'Wall finishing'), unit: 'm²', unit_price: 165_000, measure: 'WALL_AREA', sort: 9 },
-  { code: 'electrical', category: PRICE_CATEGORY.UTILITIES, name: t('Elektr montaji', 'Электромонтаж', 'Electrical'), unit: 'm²', unit_price: 210_000, measure: 'FLOOR_AREA', sort: 10 },
-  { code: 'plumbing', category: PRICE_CATEGORY.UTILITIES, name: t('Suv va kanalizatsiya', 'Водоснабжение', 'Plumbing'), unit: 'm²', unit_price: 145_000, measure: 'FLOOR_AREA', sort: 11 },
-  { code: 'heating', category: PRICE_CATEGORY.UTILITIES, name: t('Isitish tizimi', 'Отопление', 'Heating'), unit: 'm²', unit_price: 260_000, measure: 'FLOOR_AREA', sort: 12 },
+  { code: 'foundation_strip', category: PRICE_CATEGORY.FOUNDATION, name: t('Lentali poydevor', 'Ленточный фундамент', 'Strip foundation'), unit: 'm³', unitPrice: 1_450_000, measure: 'FOUNDATION_VOLUME', sort: 1 },
+  { code: 'wall_exterior', category: PRICE_CATEGORY.WALLS, name: t('Tashqi devor (g\'isht)', 'Наружная стена', 'Exterior wall'), unit: 'm²', unitPrice: 620_000, measure: 'EXTERIOR_WALL_AREA', sort: 2 },
+  { code: 'wall_interior', category: PRICE_CATEGORY.WALLS, name: t('Ichki devor', 'Внутренняя стена', 'Interior wall'), unit: 'm²', unitPrice: 310_000, measure: 'INTERIOR_WALL_AREA', sort: 3 },
+  { code: 'roof_cover', category: PRICE_CATEGORY.ROOF, name: t('Tom qoplamasi', 'Кровельное покрытие', 'Roof covering'), unit: 'm²', unitPrice: 480_000, measure: 'ROOF_AREA', sort: 4 },
+  { code: 'window_unit', category: PRICE_CATEGORY.WINDOWS_DOORS, name: t('Deraza', 'Окно', 'Window'), unit: 'dona', unitPrice: 2_100_000, measure: 'WINDOW_COUNT', sort: 5 },
+  { code: 'door_unit', category: PRICE_CATEGORY.WINDOWS_DOORS, name: t('Eshik', 'Дверь', 'Door'), unit: 'dona', unitPrice: 1_350_000, measure: 'DOOR_COUNT', sort: 6 },
+  { code: 'floor_finish', category: PRICE_CATEGORY.FINISHING, name: t('Pol pardozi', 'Отделка пола', 'Floor finishing'), unit: 'm²', unitPrice: 340_000, measure: 'FLOOR_AREA', sort: 7 },
+  { code: 'ceiling_finish', category: PRICE_CATEGORY.FINISHING, name: t('Shift pardozi', 'Отделка потолка', 'Ceiling finishing'), unit: 'm²', unitPrice: 190_000, measure: 'CEILING_AREA', sort: 8 },
+  { code: 'wall_finish', category: PRICE_CATEGORY.FINISHING, name: t('Devor pardozi', 'Отделка стен', 'Wall finishing'), unit: 'm²', unitPrice: 165_000, measure: 'WALL_AREA', sort: 9 },
+  { code: 'electrical', category: PRICE_CATEGORY.UTILITIES, name: t('Elektr montaji', 'Электромонтаж', 'Electrical'), unit: 'm²', unitPrice: 210_000, measure: 'FLOOR_AREA', sort: 10 },
+  { code: 'plumbing', category: PRICE_CATEGORY.UTILITIES, name: t('Suv va kanalizatsiya', 'Водоснабжение', 'Plumbing'), unit: 'm²', unitPrice: 145_000, measure: 'FLOOR_AREA', sort: 11 },
+  { code: 'heating', category: PRICE_CATEGORY.UTILITIES, name: t('Isitish tizimi', 'Отопление', 'Heating'), unit: 'm²', unitPrice: 260_000, measure: 'FLOOR_AREA', sort: 12 },
 
   // Qo'shimcha hajmlar — kompleks narx: poydevor, devor, tom va pardoz
   // birgalikda. Garajning kvadrat metri yashash xonasinikidan arzon.
-  { code: 'garage_build', category: PRICE_CATEGORY.OTHER, name: t('Garaj (kompleks)', 'Гараж (комплекс)', 'Garage (complete)'), unit: 'm²', unit_price: 1_650_000, measure: 'GARAGE_AREA', sort: 20 },
-  { code: 'terrace_build', category: PRICE_CATEGORY.OTHER, name: t('Terrassa', 'Терраса', 'Terrace'), unit: 'm²', unit_price: 890_000, measure: 'TERRACE_AREA', sort: 21 },
-  { code: 'balcony_build', category: PRICE_CATEGORY.OTHER, name: t('Balkon', 'Балкон', 'Balcony'), unit: 'm²', unit_price: 1_150_000, measure: 'BALCONY_AREA', sort: 22 },
-  { code: 'basement_build', category: PRICE_CATEGORY.OTHER, name: t('Yerto\'la (qazish bilan)', 'Подвал (с выемкой)', 'Basement (with excavation)'), unit: 'm²', unit_price: 2_400_000, measure: 'BASEMENT_AREA', sort: 23 },
-  { code: 'sauna_build', category: PRICE_CATEGORY.OTHER, name: t('Sauna', 'Сауна', 'Sauna'), unit: 'm²', unit_price: 3_100_000, measure: 'SAUNA_AREA', sort: 24 },
-  { code: 'pool_build', category: PRICE_CATEGORY.OTHER, name: t('Hovuz', 'Бассейн', 'Pool'), unit: 'm²', unit_price: 4_200_000, measure: 'POOL_AREA', sort: 25 },
+  { code: 'garage_build', category: PRICE_CATEGORY.OTHER, name: t('Garaj (kompleks)', 'Гараж (комплекс)', 'Garage (complete)'), unit: 'm²', unitPrice: 1_650_000, measure: 'GARAGE_AREA', sort: 20 },
+  { code: 'terrace_build', category: PRICE_CATEGORY.OTHER, name: t('Terrassa', 'Терраса', 'Terrace'), unit: 'm²', unitPrice: 890_000, measure: 'TERRACE_AREA', sort: 21 },
+  { code: 'balcony_build', category: PRICE_CATEGORY.OTHER, name: t('Balkon', 'Балкон', 'Balcony'), unit: 'm²', unitPrice: 1_150_000, measure: 'BALCONY_AREA', sort: 22 },
+  { code: 'basement_build', category: PRICE_CATEGORY.OTHER, name: t('Yerto\'la (qazish bilan)', 'Подвал (с выемкой)', 'Basement (with excavation)'), unit: 'm²', unitPrice: 2_400_000, measure: 'BASEMENT_AREA', sort: 23 },
+  { code: 'sauna_build', category: PRICE_CATEGORY.OTHER, name: t('Sauna', 'Сауна', 'Sauna'), unit: 'm²', unitPrice: 3_100_000, measure: 'SAUNA_AREA', sort: 24 },
+  { code: 'pool_build', category: PRICE_CATEGORY.OTHER, name: t('Hovuz', 'Бассейн', 'Pool'), unit: 'm²', unitPrice: 4_200_000, measure: 'POOL_AREA', sort: 25 },
 ];
 
 /**
  * Material variantlari — narxni aynan shular belgilaydi.
  *
- * `PriceItem.unit_price` faqat zaxira: hech qanday material tanlanmagan
+ * `PriceItem.unitPrice` faqat zaxira: hech qanday material tanlanmagan
  * va pardoz to'plamida ham yo'q bo'lsa ishlatiladi.
  *
  * Narxlar 2026-yil boshidagi Toshkent bozoriga taxminan mos; admin
@@ -370,74 +370,74 @@ const PRICE_OPTIONS: Array<{
   item: string;
   code: string;
   name: ReturnType<typeof t>;
-  unit_price: number;
+  unitPrice: number;
   sort: number;
 }> = [
   // Poydevor
-  { item: 'foundation_strip', code: 'ustunli', name: t('Ustunli poydevor', 'Столбчатый', 'Pier'), unit_price: 980_000, sort: 1 },
-  { item: 'foundation_strip', code: 'lentali', name: t('Lentali poydevor', 'Ленточный', 'Strip'), unit_price: 1_450_000, sort: 2 },
-  { item: 'foundation_strip', code: 'plita', name: t('Plita poydevor', 'Плитный', 'Raft slab'), unit_price: 1_950_000, sort: 3 },
+  { item: 'foundation_strip', code: 'ustunli', name: t('Ustunli poydevor', 'Столбчатый', 'Pier'), unitPrice: 980_000, sort: 1 },
+  { item: 'foundation_strip', code: 'lentali', name: t('Lentali poydevor', 'Ленточный', 'Strip'), unitPrice: 1_450_000, sort: 2 },
+  { item: 'foundation_strip', code: 'plita', name: t('Plita poydevor', 'Плитный', 'Raft slab'), unitPrice: 1_950_000, sort: 3 },
 
   // Tashqi devor
-  { item: 'wall_exterior', code: 'sendvich', name: t('Sendvich panel', 'Сэндвич-панель', 'Sandwich panel'), unit_price: 390_000, sort: 1 },
-  { item: 'wall_exterior', code: 'gazoblok', name: t('Gazoblok', 'Газоблок', 'Aerated block'), unit_price: 480_000, sort: 2 },
-  { item: 'wall_exterior', code: 'keramzit', name: t('Keramzit blok', 'Керамзитоблок', 'Expanded clay block'), unit_price: 540_000, sort: 3 },
-  { item: 'wall_exterior', code: 'gisht', name: t('G\'isht', 'Кирпич', 'Brick'), unit_price: 620_000, sort: 4 },
+  { item: 'wall_exterior', code: 'sendvich', name: t('Sendvich panel', 'Сэндвич-панель', 'Sandwich panel'), unitPrice: 390_000, sort: 1 },
+  { item: 'wall_exterior', code: 'gazoblok', name: t('Gazoblok', 'Газоблок', 'Aerated block'), unitPrice: 480_000, sort: 2 },
+  { item: 'wall_exterior', code: 'keramzit', name: t('Keramzit blok', 'Керамзитоблок', 'Expanded clay block'), unitPrice: 540_000, sort: 3 },
+  { item: 'wall_exterior', code: 'gisht', name: t('G\'isht', 'Кирпич', 'Brick'), unitPrice: 620_000, sort: 4 },
 
   // Ichki devor
-  { item: 'wall_interior', code: 'gipsokarton', name: t('Gipsokarton', 'Гипсокартон', 'Drywall'), unit_price: 210_000, sort: 1 },
-  { item: 'wall_interior', code: 'gazoblok', name: t('Gazoblok', 'Газоблок', 'Aerated block'), unit_price: 260_000, sort: 2 },
-  { item: 'wall_interior', code: 'gisht', name: t('G\'isht', 'Кирпич', 'Brick'), unit_price: 310_000, sort: 3 },
+  { item: 'wall_interior', code: 'gipsokarton', name: t('Gipsokarton', 'Гипсокартон', 'Drywall'), unitPrice: 210_000, sort: 1 },
+  { item: 'wall_interior', code: 'gazoblok', name: t('Gazoblok', 'Газоблок', 'Aerated block'), unitPrice: 260_000, sort: 2 },
+  { item: 'wall_interior', code: 'gisht', name: t('G\'isht', 'Кирпич', 'Brick'), unitPrice: 310_000, sort: 3 },
 
   // Tom
-  { item: 'roof_cover', code: 'profnastil', name: t('Profnastil', 'Профнастил', 'Corrugated sheet'), unit_price: 380_000, sort: 1 },
-  { item: 'roof_cover', code: 'metallocherepitsa', name: t('Metallocherepitsa', 'Металлочерепица', 'Metal tile'), unit_price: 480_000, sort: 2 },
-  { item: 'roof_cover', code: 'yumshoq', name: t('Yumshoq tom', 'Мягкая кровля', 'Bitumen shingle'), unit_price: 560_000, sort: 3 },
-  { item: 'roof_cover', code: 'cherepitsa', name: t('Tabiiy cherepitsa', 'Натуральная черепица', 'Clay tile'), unit_price: 890_000, sort: 4 },
+  { item: 'roof_cover', code: 'profnastil', name: t('Profnastil', 'Профнастил', 'Corrugated sheet'), unitPrice: 380_000, sort: 1 },
+  { item: 'roof_cover', code: 'metallocherepitsa', name: t('Metallocherepitsa', 'Металлочерепица', 'Metal tile'), unitPrice: 480_000, sort: 2 },
+  { item: 'roof_cover', code: 'yumshoq', name: t('Yumshoq tom', 'Мягкая кровля', 'Bitumen shingle'), unitPrice: 560_000, sort: 3 },
+  { item: 'roof_cover', code: 'cherepitsa', name: t('Tabiiy cherepitsa', 'Натуральная черепица', 'Clay tile'), unitPrice: 890_000, sort: 4 },
 
   // Deraza
-  { item: 'window_unit', code: 'pvx_oddiy', name: t('PVX, bir kamerali', 'ПВХ однокамерный', 'PVC single chamber'), unit_price: 1_500_000, sort: 1 },
-  { item: 'window_unit', code: 'pvx_ikki', name: t('PVX, ikki kamerali', 'ПВХ двухкамерный', 'PVC double chamber'), unit_price: 2_100_000, sort: 2 },
-  { item: 'window_unit', code: 'alyumin', name: t('Alyuminiy profil', 'Алюминиевый профиль', 'Aluminium'), unit_price: 3_200_000, sort: 3 },
+  { item: 'window_unit', code: 'pvx_oddiy', name: t('PVX, bir kamerali', 'ПВХ однокамерный', 'PVC single chamber'), unitPrice: 1_500_000, sort: 1 },
+  { item: 'window_unit', code: 'pvx_ikki', name: t('PVX, ikki kamerali', 'ПВХ двухкамерный', 'PVC double chamber'), unitPrice: 2_100_000, sort: 2 },
+  { item: 'window_unit', code: 'alyumin', name: t('Alyuminiy profil', 'Алюминиевый профиль', 'Aluminium'), unitPrice: 3_200_000, sort: 3 },
 
   // Eshik
-  { item: 'door_unit', code: 'mdf', name: t('MDF eshik', 'МДФ дверь', 'MDF door'), unit_price: 900_000, sort: 1 },
-  { item: 'door_unit', code: 'yogoch', name: t('Tabiiy yog\'och', 'Натуральное дерево', 'Solid wood'), unit_price: 1_350_000, sort: 2 },
-  { item: 'door_unit', code: 'polat', name: t('Po\'lat eshik', 'Стальная дверь', 'Steel door'), unit_price: 2_100_000, sort: 3 },
+  { item: 'door_unit', code: 'mdf', name: t('MDF eshik', 'МДФ дверь', 'MDF door'), unitPrice: 900_000, sort: 1 },
+  { item: 'door_unit', code: 'yogoch', name: t('Tabiiy yog\'och', 'Натуральное дерево', 'Solid wood'), unitPrice: 1_350_000, sort: 2 },
+  { item: 'door_unit', code: 'polat', name: t('Po\'lat eshik', 'Стальная дверь', 'Steel door'), unitPrice: 2_100_000, sort: 3 },
 
   // Pol pardozi
-  { item: 'floor_finish', code: 'linoleum', name: t('Linoleum', 'Линолеум', 'Linoleum'), unit_price: 180_000, sort: 1 },
-  { item: 'floor_finish', code: 'laminat', name: t('Laminat', 'Ламинат', 'Laminate'), unit_price: 340_000, sort: 2 },
-  { item: 'floor_finish', code: 'keramogranit', name: t('Keramogranit', 'Керамогранит', 'Porcelain tile'), unit_price: 520_000, sort: 3 },
-  { item: 'floor_finish', code: 'parket', name: t('Tabiiy parket', 'Паркет', 'Hardwood'), unit_price: 780_000, sort: 4 },
+  { item: 'floor_finish', code: 'linoleum', name: t('Linoleum', 'Линолеум', 'Linoleum'), unitPrice: 180_000, sort: 1 },
+  { item: 'floor_finish', code: 'laminat', name: t('Laminat', 'Ламинат', 'Laminate'), unitPrice: 340_000, sort: 2 },
+  { item: 'floor_finish', code: 'keramogranit', name: t('Keramogranit', 'Керамогранит', 'Porcelain tile'), unitPrice: 520_000, sort: 3 },
+  { item: 'floor_finish', code: 'parket', name: t('Tabiiy parket', 'Паркет', 'Hardwood'), unitPrice: 780_000, sort: 4 },
 
   // Shift pardozi
-  { item: 'ceiling_finish', code: 'boyoq', name: t('Bo\'yoq', 'Покраска', 'Paint'), unit_price: 120_000, sort: 1 },
-  { item: 'ceiling_finish', code: 'tortma', name: t('Tortma shift', 'Натяжной потолок', 'Stretch ceiling'), unit_price: 190_000, sort: 2 },
-  { item: 'ceiling_finish', code: 'gipsokarton', name: t('Gipsokarton, ko\'p qavatli', 'Многоуровневый ГКЛ', 'Multi-level drywall'), unit_price: 310_000, sort: 3 },
+  { item: 'ceiling_finish', code: 'boyoq', name: t('Bo\'yoq', 'Покраска', 'Paint'), unitPrice: 120_000, sort: 1 },
+  { item: 'ceiling_finish', code: 'tortma', name: t('Tortma shift', 'Натяжной потолок', 'Stretch ceiling'), unitPrice: 190_000, sort: 2 },
+  { item: 'ceiling_finish', code: 'gipsokarton', name: t('Gipsokarton, ko\'p qavatli', 'Многоуровневый ГКЛ', 'Multi-level drywall'), unitPrice: 310_000, sort: 3 },
 
   // Devor pardozi
-  { item: 'wall_finish', code: 'boyoq', name: t('Bo\'yoq', 'Покраска', 'Paint'), unit_price: 110_000, sort: 1 },
-  { item: 'wall_finish', code: 'oboy', name: t('Oboy', 'Обои', 'Wallpaper'), unit_price: 165_000, sort: 2 },
-  { item: 'wall_finish', code: 'dekorativ', name: t('Dekorativ shtukaturka', 'Декоративная штукатурка', 'Decorative plaster'), unit_price: 340_000, sort: 3 },
+  { item: 'wall_finish', code: 'boyoq', name: t('Bo\'yoq', 'Покраска', 'Paint'), unitPrice: 110_000, sort: 1 },
+  { item: 'wall_finish', code: 'oboy', name: t('Oboy', 'Обои', 'Wallpaper'), unitPrice: 165_000, sort: 2 },
+  { item: 'wall_finish', code: 'dekorativ', name: t('Dekorativ shtukaturka', 'Декоративная штукатурка', 'Decorative plaster'), unitPrice: 340_000, sort: 3 },
 
   // Muhandislik tizimlari
-  { item: 'electrical', code: 'oddiy', name: t('Oddiy montaj', 'Базовый монтаж', 'Basic'), unit_price: 150_000, sort: 1 },
-  { item: 'electrical', code: 'standart', name: t('Standart montaj', 'Стандартный монтаж', 'Standard'), unit_price: 210_000, sort: 2 },
-  { item: 'electrical', code: 'aqlli', name: t('Aqlli uy tizimi', 'Умный дом', 'Smart home'), unit_price: 480_000, sort: 3 },
+  { item: 'electrical', code: 'oddiy', name: t('Oddiy montaj', 'Базовый монтаж', 'Basic'), unitPrice: 150_000, sort: 1 },
+  { item: 'electrical', code: 'standart', name: t('Standart montaj', 'Стандартный монтаж', 'Standard'), unitPrice: 210_000, sort: 2 },
+  { item: 'electrical', code: 'aqlli', name: t('Aqlli uy tizimi', 'Умный дом', 'Smart home'), unitPrice: 480_000, sort: 3 },
 
-  { item: 'plumbing', code: 'oddiy', name: t('Oddiy quvurlar', 'Базовые трубы', 'Basic'), unit_price: 105_000, sort: 1 },
-  { item: 'plumbing', code: 'standart', name: t('Standart quvurlar', 'Стандартные трубы', 'Standard'), unit_price: 145_000, sort: 2 },
-  { item: 'plumbing', code: 'premium', name: t('Premium armatura', 'Премиум арматура', 'Premium'), unit_price: 260_000, sort: 3 },
+  { item: 'plumbing', code: 'oddiy', name: t('Oddiy quvurlar', 'Базовые трубы', 'Basic'), unitPrice: 105_000, sort: 1 },
+  { item: 'plumbing', code: 'standart', name: t('Standart quvurlar', 'Стандартные трубы', 'Standard'), unitPrice: 145_000, sort: 2 },
+  { item: 'plumbing', code: 'premium', name: t('Premium armatura', 'Премиум арматура', 'Premium'), unitPrice: 260_000, sort: 3 },
 
-  { item: 'heating', code: 'radiator', name: t('Radiator isitish', 'Радиаторное', 'Radiators'), unit_price: 260_000, sort: 1 },
-  { item: 'heating', code: 'issiq_pol', name: t('Issiq pol', 'Тёплый пол', 'Underfloor'), unit_price: 420_000, sort: 2 },
+  { item: 'heating', code: 'radiator', name: t('Radiator isitish', 'Радиаторное', 'Radiators'), unitPrice: 260_000, sort: 1 },
+  { item: 'heating', code: 'issiq_pol', name: t('Issiq pol', 'Тёплый пол', 'Underfloor'), unitPrice: 420_000, sort: 2 },
 ];
 
 /**
  * Pardoz darajasi — sukutdagi materiallar to'plami.
  *
- * Ro'yxatda ko'rsatilmagan ish turlari `PriceItem.unit_price` bilan
+ * Ro'yxatda ko'rsatilmagan ish turlari `PriceItem.unitPrice` bilan
  * qoladi. Foydalanuvchi har bir bandni alohida o'zgartira oladi.
  */
 const FINISH_LEVELS = [
@@ -504,24 +504,24 @@ const PLANS = [
   {
     code: 'free',
     name: t('Free', 'Free', 'Free'),
-    price_uzs: 0,
-    price_usd: 0,
+    priceUzs: 0,
+    priceUsd: 0,
     limits: { projects: 1, variants: 1, pdf: false, dwg: false, interior: false, edit: false, versions: 0, watermark: true },
     sort: 1,
   },
   {
     code: 'basic',
     name: t('Basic', 'Basic', 'Basic'),
-    price_uzs: 129_000,
-    price_usd: 9.99,
+    priceUzs: 129_000,
+    priceUsd: 9.99,
     limits: { projects: 10, variants: 4, pdf: true, dwg: false, interior: true, edit: true, versions: 5, watermark: false },
     sort: 2,
   },
   {
     code: 'pro',
     name: t('Pro', 'Pro', 'Pro'),
-    price_uzs: 399_000,
-    price_usd: 29.99,
+    priceUzs: 399_000,
+    priceUsd: 29.99,
     limits: { projects: -1, variants: -1, pdf: true, dwg: 'on_request', interior: true, edit: true, versions: -1, watermark: false },
     sort: 3,
   },
@@ -550,12 +550,12 @@ const SKELETONS = [
   {
     name: 'Ixcham — 2 yotoqxona, 1 qavat',
     floors: 1,
-    tag_bedrooms: [2],
-    tag_styles: [],
-    min_width: 8,
-    max_width: 13,
-    min_length: 9,
-    max_length: 15,
+    tagBedrooms: [2],
+    tagStyles: [],
+    minWidth: 8,
+    maxWidth: 13,
+    minLength: 9,
+    maxLength: 15,
     tree: {
       floors: [
         {
@@ -587,12 +587,12 @@ const SKELETONS = [
   {
     name: 'Keng — 3 yotoqxona, 1 qavat',
     floors: 1,
-    tag_bedrooms: [3],
-    tag_styles: [],
-    min_width: 10,
-    max_width: 17,
-    min_length: 11,
-    max_length: 18,
+    tagBedrooms: [3],
+    tagStyles: [],
+    minWidth: 10,
+    maxWidth: 17,
+    minLength: 11,
+    maxLength: 18,
     tree: {
       floors: [
         {
@@ -623,12 +623,12 @@ const SKELETONS = [
   {
     name: 'Ikki qavatli — 3 yotoqxona',
     floors: 2,
-    tag_bedrooms: [3],
-    tag_styles: [],
-    min_width: 9,
-    max_width: 15,
-    min_length: 10,
-    max_length: 16,
+    tagBedrooms: [3],
+    tagStyles: [],
+    minWidth: 9,
+    maxWidth: 15,
+    minLength: 10,
+    maxLength: 16,
     tree: {
       floors: [
         {
@@ -719,7 +719,7 @@ async function main() {
   /*
    * Mavjud qatorlar TEGILMAYDI.
    *
-   * Xona qoidalari ham admin tahrirlaydigan ma'lumot: `min_area` ni 9
+   * Xona qoidalari ham admin tahrirlaydigan ma'lumot: `minArea` ni 9
    * dan 14 ga o'zgartirish bundan keyin yaratiladigan hamma uyni
    * o'zgartiradi. Ilgari bu yerda `update: roomType` turardi va
    * urug'ni qayta yurgizish
@@ -772,7 +772,7 @@ async function main() {
       update: forcePrices ? item : {},
       create: item,
     });
-    if (result.created_at.getTime() === result.updated_at.getTime()) priceCreated += 1;
+    if (result.createdAt.getTime() === result.updatedAt.getTime()) priceCreated += 1;
   }
 
   /**
@@ -794,12 +794,12 @@ async function main() {
     const { item: _itemCode, ...fields } = option;
 
     const result = await prisma.priceOption.upsert({
-      where: { price_item_id_code: { price_item_id: item.id, code: option.code } },
+      where: { priceItemId_code: { priceItemId: item.id, code: option.code } },
       update: forcePrices ? fields : {},
-      create: { ...fields, price_item_id: item.id },
+      create: { ...fields, priceItemId: item.id },
     });
 
-    if (result.created_at.getTime() === result.updated_at.getTime()) optionCreated += 1;
+    if (result.createdAt.getTime() === result.updatedAt.getTime()) optionCreated += 1;
   }
 
   /**
@@ -846,7 +846,7 @@ async function main() {
 
     const data = {
       ...fields,
-      covering_id: option?.id ?? null,
+      coveringId: option?.id ?? null,
       status: CONTENT_STATUS.PUBLISHED,
     };
 
@@ -865,8 +865,8 @@ async function main() {
     if (!preset) continue;
 
     await prisma.style.updateMany({
-      where: { slug, roof_style_id: null },
-      data: { roof_style_id: preset.id },
+      where: { slug, roofStyleId: null },
+      data: { roofStyleId: preset.id },
     });
   }
 
@@ -920,9 +920,9 @@ async function main() {
     create: {
       fullName: 'ArchAI Admin',
       email: adminEmail,
-      password: await bcrypt.hash(adminPassword, 10),
+      password: await hashPassword(adminPassword),
       role: USER_ROLE.ADMIN,
-      email_verified: true,
+      emailVerified: true,
     },
   });
   console.info(`  admin: ${adminEmail}`);

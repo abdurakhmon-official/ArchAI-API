@@ -16,11 +16,11 @@ const LIST_SELECT = {
   slug: true,
   title: true,
   excerpt: true,
-  cover_url: true,
+  coverUrl: true,
   status: true,
   views: true,
-  published_at: true,
-  created_at: true,
+  publishedAt: true,
+  createdAt: true,
   category: { select: { slug: true, name: true } },
   author: { select: { fullName: true } },
 };
@@ -35,7 +35,7 @@ export class BlogService {
         ? query.status
           ? { status: query.status }
           : {}
-        : { status: CONTENT_STATUS.PUBLISHED, published_at: { lte: new Date() } }),
+        : { status: CONTENT_STATUS.PUBLISHED, publishedAt: { lte: new Date() } }),
       ...(query.category ? { category: { slug: query.category } } : {}),
       ...(query.search
         ? {
@@ -51,7 +51,7 @@ export class BlogService {
       prisma.blogPost.findMany({
         where,
         select: LIST_SELECT,
-        orderBy: [{ published_at: 'desc' }, { created_at: 'desc' }],
+        orderBy: [{ publishedAt: 'desc' }, { createdAt: 'desc' }],
         skip: (query.page - 1) * query.limit,
         take: query.limit,
       }),
@@ -83,7 +83,7 @@ export class BlogService {
 
     const visible =
       post.status === CONTENT_STATUS.PUBLISHED &&
-      (!post.published_at || post.published_at <= new Date());
+      (!post.publishedAt || post.publishedAt <= new Date());
 
     if (!visible && !includeDrafts) throw notFound('POST_NOT_FOUND', 'post not found');
 
@@ -107,9 +107,9 @@ export class BlogService {
       data: {
         ...data,
         body: data.body as Prisma.InputJsonValue,
-        author_id: authorId ?? null,
-        published_at:
-          data.published_at ??
+        authorId: authorId ?? null,
+        publishedAt:
+          data.publishedAt ??
           (data.status === CONTENT_STATUS.PUBLISHED ? new Date() : null),
       },
     });
@@ -131,10 +131,10 @@ export class BlogService {
       data: {
         ...data,
         body: data.body as Prisma.InputJsonValue,
-        published_at:
-          data.published_at ??
+        publishedAt:
+          data.publishedAt ??
           (data.status === CONTENT_STATUS.PUBLISHED
-            ? (existing.published_at ?? new Date())
+            ? (existing.publishedAt ?? new Date())
             : null),
       },
     });
@@ -170,7 +170,7 @@ export class BlogService {
   }
 
   async removeCategory(id: string) {
-    const posts = await prisma.blogPost.count({ where: { category_id: id } });
+    const posts = await prisma.blogPost.count({ where: { categoryId: id } });
 
     if (posts > 0) {
       throw badRequest('CATEGORY_HAS_POSTS', `this category still holds ${posts} posts`, { count: posts });

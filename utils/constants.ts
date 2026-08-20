@@ -39,11 +39,11 @@ export const USER_PUBLIC_SELECT = {
   phone: true,
   avatar: true,
   locale: true,
-  email_verified: true,
-  password_changed_at: true,
+  emailVerified: true,
+  passwordChangedAt: true,
   active: true,
-  created_at: true,
-  updated_at: true,
+  createdAt: true,
+  updatedAt: true,
 };
 
 export type RoleRequirements = {

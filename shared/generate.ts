@@ -46,12 +46,12 @@ export interface SkeletonRow {
   name: string;
   floors: number;
   tree: unknown;
-  tag_bedrooms: number[];
-  tag_styles: string[];
-  min_width: number;
-  max_width: number;
-  min_length: number;
-  max_length: number;
+  tagBedrooms: number[];
+  tagStyles: string[];
+  minWidth: number;
+  maxWidth: number;
+  minLength: number;
+  maxLength: number;
 }
 
 export interface CandidateQuery {
@@ -160,14 +160,14 @@ export function rankCandidates(rows: SkeletonRow[], query: CandidateQuery): Skel
 
       let fit = 100;
 
-      if (row.tag_bedrooms.length > 0 && !row.tag_bedrooms.includes(query.bedrooms)) {
+      if (row.tagBedrooms.length > 0 && !row.tagBedrooms.includes(query.bedrooms)) {
         const closest = Math.min(
-          ...row.tag_bedrooms.map((count) => Math.abs(count - query.bedrooms)),
+          ...row.tagBedrooms.map((count) => Math.abs(count - query.bedrooms)),
         );
         fit -= Math.min(40, closest * 15);
       }
 
-      if (query.styleSlug && row.tag_styles.length > 0 && !row.tag_styles.includes(query.styleSlug)) {
+      if (query.styleSlug && row.tagStyles.length > 0 && !row.tagStyles.includes(query.styleSlug)) {
         fit -= 20;
       }
 
@@ -198,10 +198,10 @@ function compareSkeletons(first: SkeletonCandidate, second: SkeletonCandidate): 
 export function fitsQuery(row: SkeletonRow, query: CandidateQuery): boolean {
   return (
     row.floors === query.floors &&
-    row.min_width <= query.width &&
-    row.max_width >= query.width &&
-    row.min_length <= query.length &&
-    row.max_length >= query.length
+    row.minWidth <= query.width &&
+    row.maxWidth >= query.width &&
+    row.minLength <= query.length &&
+    row.maxLength >= query.length
   );
 }
 

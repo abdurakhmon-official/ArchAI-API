@@ -5,6 +5,7 @@ import {
   SignupInput,
   UpdatePasswordInput,
   UpdateProfileInput,
+  PasswordStrengthInput,
 } from '@/inputs/auth.input';
 import { Authorized, Authenticate } from '@/middlewares/auth.middleware';
 import { RATE_LIMITS, RateLimit } from '@/middlewares/rate-limit.middleware';
@@ -22,6 +23,13 @@ export class AuthController {
   @RateLimit(RATE_LIMITS.auth)
   async signup(@BodyParams() data: SignupInput) {
     return await this.authService.signup(data);
+  }
+
+  /** Live strength meter for the signup form — debounced client-side. */
+  @Post('/password-strength')
+  @RateLimit(RATE_LIMITS.auth)
+  async passwordStrength(@BodyParams() data: PasswordStrengthInput) {
+    return this.authService.passwordStrength(data);
   }
 
   @Post('/signin')

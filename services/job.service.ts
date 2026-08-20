@@ -9,10 +9,6 @@ import { presignDownload } from '@/modules/storage';
 
 const JOB_ID_SEPARATOR = '-';
 
-function jobIdOf(queue: string, ...parts: string[]): string {
-  return [queue, ...parts].join(JOB_ID_SEPARATOR);
-}
-
 @Injectable()
 export class JobService {
   async requestPdf(
@@ -23,22 +19,22 @@ export class JobService {
   ): Promise<{ ready: boolean; url?: string; jobId?: string }> {
     const existing = await prisma.projectExport.findUnique({
       where: {
-        project_id_kind_geometry_hash_watermark: {
-          project_id: projectId,
+        projectId_kind_geometryHash_watermark: {
+          projectId: projectId,
           kind: EXPORT_KIND.PDF,
-          geometry_hash: geometryHash,
+          geometryHash: geometryHash,
           watermark,
         },
       },
     });
 
-    if (existing && (!existing.expires_at || existing.expires_at > new Date())) {
-      return { ready: true, url: await presignDownload(existing.storage_key) };
+    if (existing && (!existing.expiresAt || existing.expiresAt > new Date())) {
+      return { ready: true, url: await presignDownload(existing.storageKey) };
     }
 
     this.assertQueueAvailable();
 
-    const jobId = jobIdOf('pdf', projectId, geometryHash, watermark ? 'w' : 'c');
+    const jobId = this.jobIdOf('pdf', projectId, geometryHash, watermark ? 'w' : 'c');
     await pdfQueue.add('generate', { projectId, geometryHash, watermark, locale }, { jobId });
 
     return { ready: false, jobId };
@@ -53,22 +49,22 @@ export class JobService {
 
     const existing = await prisma.projectExport.findUnique({
       where: {
-        project_id_kind_geometry_hash_watermark: {
-          project_id: projectId,
+        projectId_kind_geometryHash_watermark: {
+          projectId: projectId,
           kind: EXPORT_KIND.RENDER,
-          geometry_hash: hash,
+          geometryHash: hash,
           watermark: false,
         },
       },
     });
 
-    if (existing && (!existing.expires_at || existing.expires_at > new Date())) {
-      return { ready: true, url: await presignDownload(existing.storage_key) };
+    if (existing && (!existing.expiresAt || existing.expiresAt > new Date())) {
+      return { ready: true, url: await presignDownload(existing.storageKey) };
     }
 
     this.assertQueueAvailable();
 
-    const jobId = jobIdOf('render', projectId, geometryHash, view);
+    const jobId = this.jobIdOf('render', projectId, geometryHash, view);
     await renderQueue.add('generate', { projectId, geometryHash, view }, { jobId });
 
     return { ready: false, jobId };
@@ -111,5 +107,9 @@ export class JobService {
     if (!isRedisReady()) {
       throw badRequest('QUEUE_UNAVAILABLE', 'file generation is temporarily unavailable');
     }
+  }
+
+  private jobIdOf(queue: string, ...parts: string[]): string {
+    return [queue, ...parts].join(JOB_ID_SEPARATOR);
   }
 }

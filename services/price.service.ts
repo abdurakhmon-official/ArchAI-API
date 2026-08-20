@@ -109,12 +109,12 @@ export class PriceService {
     if (!item) throw notFound('PRICE_ITEM_NOT_FOUND', 'price item not found');
 
     const clash = await prisma.priceOption.findUnique({
-      where: { price_item_id_code: { price_item_id: itemId, code: data.code } },
+      where: { priceItemId_code: { priceItemId: itemId, code: data.code } },
     });
     if (clash) throw badRequest('PRICE_OPTION_CODE_TAKEN', 'this material code already exists on that item');
 
     const option = await prisma.priceOption.create({
-      data: { ...data, description: jsonOrNull(data.description), price_item_id: itemId },
+      data: { ...data, description: jsonOrNull(data.description), priceItemId: itemId },
     });
     await recordAudit({
       actorId,
@@ -152,7 +152,7 @@ export class PriceService {
     const existing = await prisma.priceOption.findUnique({ where: { id } });
     if (!existing) throw notFound('PRICE_OPTION_NOT_FOUND', 'material not found');
 
-    const affected = await this.projectsUsingOption(existing.price_item_id, existing.code);
+    const affected = await this.projectsUsingOption(existing.priceItemId, existing.code);
 
     await prisma.priceOption.delete({ where: { id } });
     await recordAudit({
@@ -189,7 +189,7 @@ export class PriceService {
     await recordAudit({
       actorId,
       action: 'update',
-      entity: 'finish_level',
+      entity: 'finishLevel',
       entityId: existing.id,
       diff: diffOf(toPlain(existing), toPlain(level)),
     });
@@ -199,9 +199,9 @@ export class PriceService {
 
   async impact() {
     const [total, withSelection] = await prisma.$transaction([
-      prisma.project.count({ where: { deleted_at: null } }),
+      prisma.project.count({ where: { deletedAt: null } }),
       prisma.project.count({
-        where: { deleted_at: null, estimate_selection: { not: Prisma.DbNull } },
+        where: { deletedAt: null, estimateSelection: { not: Prisma.DbNull } },
       }),
     ]);
 
@@ -220,8 +220,8 @@ export class PriceService {
 
     return prisma.project.count({
       where: {
-        deleted_at: null,
-        estimate_selection: { path: [item.code, 'optionCode'], equals: optionCode },
+        deletedAt: null,
+        estimateSelection: { path: [item.code, 'optionCode'], equals: optionCode },
       },
     });
   }

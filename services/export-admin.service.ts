@@ -4,21 +4,6 @@ import { EXPORT_KIND, Prisma } from '../generated/prisma';
 import prisma from '@/modules/db';
 import { deleteObject } from '@/modules/storage';
 
-/**
- * Loyiha eksportlari — admin uchun.
- *
- * PDF va 3D rasmlar `media` jadvalida EMAS, `project_exports` da
- * yotadi. Sabab: ular kesh — geometriya o'zgarsa eskisi yaroqsiz
- * bo'ladi va 30 kundan keyin o'zi o'chadi (`purgeExpiredExports`).
- * Yuklangan fayllar esa kontent va ular hech qachon o'z-o'zidan
- * yo'qolmaydi.
- *
- * Shu sababli ular media kutubxonasiga qo'shilmadi: bir ro'yxatga
- * qo'yilsa "yetim fayl" hisobi buzilardi — eksport `ProjectExport`
- * orqali ishlatiladi va `findOrphans` buni ko'rmaydi, ya'ni har bir
- * eksport yetim deb belgilanib, tozalashda o'chib ketardi.
- */
-
 @Injectable()
 export class ExportAdminService {
   async list(query: { page?: number; limit?: number; kind?: EXPORT_KIND; search?: string } = {}) {
@@ -35,7 +20,7 @@ export class ExportAdminService {
     const [items, total, stats] = await prisma.$transaction([
       prisma.projectExport.findMany({
         where,
-        orderBy: { created_at: 'desc' },
+        orderBy: { createdAt: 'desc' },
         skip: (page - 1) * limit,
         take: limit,
         include: {
@@ -44,7 +29,7 @@ export class ExportAdminService {
       }),
       prisma.projectExport.count({ where }),
       // Jami hajm — admin uchun eng muhim son: saqlash joyi shundan to'ladi.
-      prisma.projectExport.aggregate({ _sum: { size_bytes: true } }),
+      prisma.projectExport.aggregate({ _sum: { sizeBytes: true } }),
     ]);
 
     return {
@@ -55,7 +40,7 @@ export class ExportAdminService {
         limit,
         total,
         pages: Math.ceil(total / limit),
-        bytes: stats._sum.size_bytes ?? 0,
+        bytes: stats._sum.sizeBytes ?? 0,
       },
     };
   }
@@ -64,17 +49,10 @@ export class ExportAdminService {
     const item = await prisma.projectExport.findUnique({ where: { id } });
     if (!item) throw notFound('EXPORT_NOT_FOUND', 'export not found');
 
-    /*
-      Fayl o'chmasa ham yozuv o'chiriladi.
-
-      Aks holda diskda qolgan bitta fayl butun amalni to'xtatardi va
-      admin ro'yxatni tozalay olmasdi. Fayl esa keyingi tunlik
-      tozalashda baribir ketadi.
-    */
     try {
-      await deleteObject(item.storage_key);
+      await deleteObject(item.storageKey);
     } catch (error) {
-      console.warn(`export o'chmadi: ${item.storage_key} —`, (error as Error).message);
+      console.warn(`export o'chmadi: ${item.storageKey} —`, (error as Error).message);
     }
 
     await prisma.projectExport.delete({ where: { id } });
@@ -82,18 +60,16 @@ export class ExportAdminService {
     return { success: true, _code: 'EXPORT_REMOVED', _message: 'export removed' };
   }
 
-  /** Muddati o'tganlarini bir yo'la tozalaydi. */
   async purgeExpired() {
     const expired = await prisma.projectExport.findMany({
-      where: { expires_at: { lt: new Date() } },
-      select: { id: true, storage_key: true },
+      where: { expiresAt: { lt: new Date() } },
+      select: { id: true, storageKey: true },
     });
 
     for (const item of expired) {
       try {
-        await deleteObject(item.storage_key);
+        await deleteObject(item.storageKey);
       } catch {
-        // Yozuvni baribir o'chiramiz.
       }
     }
 

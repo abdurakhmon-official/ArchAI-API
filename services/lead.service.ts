@@ -42,7 +42,7 @@ export class LeadService {
     const [items, total, open] = await prisma.$transaction([
       prisma.lead.findMany({
         where,
-        orderBy: { created_at: 'desc' },
+        orderBy: { createdAt: 'desc' },
         skip: (page - 1) * limit,
         take: limit,
       }),
@@ -67,7 +67,7 @@ export class LeadService {
       where: { id },
       data: {
         ...(data.status !== undefined ? { status: data.status } : {}),
-        ...(data.admin_note !== undefined ? { admin_note: data.admin_note } : {}),
+        ...(data.adminNote !== undefined ? { adminNote: data.adminNote } : {}),
       },
     });
 

@@ -56,8 +56,8 @@ export const PlanInputSchema = z.object({
     .object({ uz: z.string().min(1), ru: z.string().optional(), en: z.string().optional() })
     .optional()
     .nullable(),
-  price_uzs: z.number().min(0).max(1_000_000_000),
-  price_usd: z.number().min(0).max(100_000),
+  priceUzs: z.number().min(0).max(1_000_000_000),
+  priceUsd: z.number().min(0).max(100_000),
   limits: PlanLimitsSchema,
   sort: z.number().int().min(0).max(999).default(0),
   active: z.boolean().default(true),
@@ -71,7 +71,7 @@ export const PayoutCardInputSchema = z.object({
   last4: z.string().regex(/^\d{4}$/, 'must be exactly 4 digits'),
   holder: z.string().min(2).max(80),
   expiry: z.string().regex(/^(0[1-9]|1[0-2])\/\d{2}$/, 'must be MM/YY'),
-  account_id: z.string().min(1).max(120),
+  accountId: z.string().min(1).max(120),
 });
 
 export type PayoutCardInput = z.infer<typeof PayoutCardInputSchema>;

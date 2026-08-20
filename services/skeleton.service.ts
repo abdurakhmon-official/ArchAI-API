@@ -34,12 +34,12 @@ export class SkeletonService {
         name: true,
         floors: true,
         tree: true,
-        tag_bedrooms: true,
-        tag_styles: true,
-        min_width: true,
-        max_width: true,
-        min_length: true,
-        max_length: true,
+        tagBedrooms: true,
+        tagStyles: true,
+        minWidth: true,
+        maxWidth: true,
+        minLength: true,
+        maxLength: true,
       },
     });
   }
@@ -81,7 +81,7 @@ export class SkeletonService {
     const existing = await prisma.skeleton.findUnique({ where: { id } });
     if (!existing) throw notFound('SKELETON_NOT_FOUND', 'skeleton not found');
 
-    const { id: _ignored, created_at, updated_at, ...rest } = existing;
+    const { id: _ignored, createdAt, updatedAt, ...rest } = existing;
 
     const copy = await prisma.skeleton.create({
       data: {
@@ -107,7 +107,7 @@ export class SkeletonService {
     const existing = await prisma.skeleton.findUnique({ where: { id } });
     if (!existing) throw notFound('SKELETON_NOT_FOUND', 'skeleton not found');
 
-    const used = await prisma.project.count({ where: { skeleton_id: id, deleted_at: null } });
+    const used = await prisma.project.count({ where: { skeletonId: id, deletedAt: null } });
 
     if (used > 0) {
       const archived = await prisma.skeleton.update({
@@ -136,8 +136,8 @@ export class SkeletonService {
 
     return { success: true, _code: 'SKELETON_REMOVED', _message: 'skeleton removed' };
   }
-}
 
-function hashTree(tree: unknown): string {
-  return createHash('sha1').update(JSON.stringify(tree)).digest('hex').slice(0, 12);
+  private hashTree(tree: unknown): string {
+    return createHash('sha1').update(JSON.stringify(tree)).digest('hex').slice(0, 12);
+  }
 }

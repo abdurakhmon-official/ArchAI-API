@@ -44,11 +44,11 @@ export const RoofStyleInputSchema = z.object({
   family: z.enum(ROOF_FAMILIES),
   pitch: z.number().min(0).max(60).default(25),
   overhang: z.number().min(0).max(2).default(0.5),
-  upper_pitch: z.number().min(0).max(60).optional().nullable(),
-  break_ratio: z.number().min(0.15).max(0.85).optional().nullable(),
-  covering_id: z.string().max(40).optional().nullable(),
+  upperPitch: z.number().min(0).max(60).optional().nullable(),
+  breakRatio: z.number().min(0.15).max(0.85).optional().nullable(),
+  coveringId: z.string().max(40).optional().nullable(),
   color: z.string().max(40).optional().nullable(),
-  preview_url: z.string().url().max(500).optional().nullable(),
+  previewUrl: z.string().url().max(500).optional().nullable(),
   status: z.nativeEnum(CONTENT_STATUS).default(CONTENT_STATUS.DRAFT),
   sort: z.number().int().min(0).max(999).default(0),
 });
@@ -85,13 +85,13 @@ export const StyleInputSchema = z.object({
   name: TranslatedSchema,
   description: TranslatedSchema.optional(),
   roof: RoofRulesSchema,
-  roof_style_id: z.string().max(40).optional().nullable(),
+  roofStyleId: z.string().max(40).optional().nullable(),
   facade: FacadeRulesSchema,
   window: WindowRulesSchema,
   interior: InteriorRulesSchema,
-  layout_rules: LayoutRulesSchema,
-  furniture_sets: z.record(z.array(z.string())).optional(),
-  preview_url: z.string().url().optional().nullable(),
+  layoutRules: LayoutRulesSchema,
+  furnitureSets: z.record(z.array(z.string())).optional(),
+  previewUrl: z.string().url().optional().nullable(),
   status: z.nativeEnum(CONTENT_STATUS).default(CONTENT_STATUS.DRAFT),
   sort: z.number().int().default(0),
 });
@@ -99,28 +99,28 @@ export const StyleInputSchema = z.object({
 export const RoomTypeFieldsSchema = z.object({
   code: z.string().min(2).max(30).regex(/^[a-z_]+$/),
   name: TranslatedSchema,
-  min_area: z.number().min(1).max(100),
-  max_area: z.number().min(2).max(200),
-  ideal_ratio: z.number().min(1).max(6).default(1.4),
-  needs_exterior_wall: z.boolean().default(true),
-  is_wet_zone: z.boolean().default(false),
-  access_from: z.array(z.string()).default([]),
-  furniture_tags: z.array(z.string()).default([]),
+  minArea: z.number().min(1).max(100),
+  maxArea: z.number().min(2).max(200),
+  idealRatio: z.number().min(1).max(6).default(1.4),
+  needsExteriorWall: z.boolean().default(true),
+  isWetZone: z.boolean().default(false),
+  accessFrom: z.array(z.string()).default([]),
+  furnitureTags: z.array(z.string()).default([]),
   selectable: z.boolean().default(false),
-  max_count: z.number().int().min(1).max(20).default(8),
-  default_count: z.number().int().min(0).max(20).default(0),
+  maxCount: z.number().int().min(1).max(20).default(8),
+  defaultCount: z.number().int().min(0).max(20).default(0),
   sort: z.number().int().default(0),
 });
 
 export const RoomTypeInputSchema = RoomTypeFieldsSchema.refine(
-  (input) => input.max_area > input.min_area,
+  (input) => input.maxArea > input.minArea,
   {
     message: 'VALIDATION_AREA_RANGE',
-    path: ['max_area'],
+    path: ['maxArea'],
   },
-).refine((input) => input.default_count <= input.max_count, {
+).refine((input) => input.defaultCount <= input.maxCount, {
   message: 'VALIDATION_DEFAULT_COUNT',
-  path: ['default_count'],
+  path: ['defaultCount'],
 });
 
 export const SkeletonFloorSchema = z.object({
@@ -133,17 +133,17 @@ export const SkeletonInputSchema = z
     name: z.string().min(1).max(120),
     floors: z.number().int().min(1).max(3),
     tree: z.object({ floors: z.array(SkeletonFloorSchema).min(1).max(3) }),
-    tag_bedrooms: z.array(z.number().int().min(0).max(8)).default([]),
-    tag_styles: z.array(z.string()).default([]),
-    min_width: z.number().min(4).max(40),
-    max_width: z.number().min(4).max(40),
-    min_length: z.number().min(4).max(40),
-    max_length: z.number().min(4).max(40),
+    tagBedrooms: z.array(z.number().int().min(0).max(8)).default([]),
+    tagStyles: z.array(z.string()).default([]),
+    minWidth: z.number().min(4).max(40),
+    maxWidth: z.number().min(4).max(40),
+    minLength: z.number().min(4).max(40),
+    maxLength: z.number().min(4).max(40),
     status: z.nativeEnum(CONTENT_STATUS).default(CONTENT_STATUS.DRAFT),
   })
-  .refine((input) => input.max_width >= input.min_width && input.max_length >= input.min_length, {
+  .refine((input) => input.maxWidth >= input.minWidth && input.maxLength >= input.minLength, {
     message: 'VALIDATION_SIZE_RANGE',
-    path: ['max_width'],
+    path: ['maxWidth'],
   })
   .refine((input) => input.tree.floors.length === input.floors, {
     message: 'VALIDATION_TREE_FLOORS',
@@ -152,10 +152,10 @@ export const SkeletonInputSchema = z
 
 export const FurnitureInputSchema = z.object({
   name: TranslatedSchema,
-  gltf_url: z.string().url(),
-  thumb_url: z.string().url().optional().nullable(),
-  room_types: z.array(z.string()).default([]),
-  style_tags: z.array(z.string()).default([]),
+  gltfUrl: z.string().url(),
+  thumbUrl: z.string().url().optional().nullable(),
+  roomTypes: z.array(z.string()).default([]),
+  styleTags: z.array(z.string()).default([]),
   footprint: z.object({
     width: z.number().min(0.1).max(10),
     depth: z.number().min(0.1).max(10),

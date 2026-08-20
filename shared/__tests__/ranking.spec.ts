@@ -21,12 +21,12 @@ function row(id: string, name: string, extra: Partial<SkeletonRow> = {}): Skelet
     id,
     name,
     floors: 1,
-    min_width: 6,
-    max_width: 20,
-    min_length: 6,
-    max_length: 20,
-    tag_bedrooms: [],
-    tag_styles: [],
+    minWidth: 6,
+    maxWidth: 20,
+    minLength: 6,
+    maxLength: 20,
+    tagBedrooms: [],
+    tagStyles: [],
     tree,
     ...extra,
   } as SkeletonRow;
@@ -38,8 +38,8 @@ describe('skeleton ordering', () => {
   it('descends by fit', () => {
     const ranked = rankCandidates(
       [
-        row('a', 'A', { tag_bedrooms: [5] }),
-        row('b', 'B', { tag_bedrooms: [2] }),
+        row('a', 'A', { tagBedrooms: [5] }),
+        row('b', 'B', { tagBedrooms: [2] }),
       ],
       QUERY,
     );

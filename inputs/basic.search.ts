@@ -12,7 +12,7 @@ export const BasicSearchSchema = z
     search: z.string().optional().nullable(),
     sortBy: z.array(SortingSchema).default([
       {
-        key: 'created_at',
+        key: 'createdAt',
         order: 'desc',
       },
     ]),

@@ -65,7 +65,7 @@ export class AuthMiddleware implements MiddlewareMethods {
       throw new Forbidden('Your account has been deactivated. Please contact an administrator.');
     }
 
-    if (issuedBeforePasswordChange(payload.iat, user.password_changed_at)) {
+    if (issuedBeforePasswordChange(payload.iat, user.passwordChangedAt)) {
       throw new Unauthorized('Session has been terminated. Please sign in again.');
     }
 
@@ -92,7 +92,7 @@ export class OptionalAuthMiddleware implements MiddlewareMethods {
         select: USER_PUBLIC_SELECT,
       });
 
-      if (user?.active && !issuedBeforePasswordChange(payload.iat, user.password_changed_at)) {
+      if (user?.active && !issuedBeforePasswordChange(payload.iat, user.passwordChangedAt)) {
         req.user = { ...user, isAdmin: user.role === USER_ROLE.ADMIN };
         req.auth = payload;
       }

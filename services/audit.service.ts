@@ -11,13 +11,13 @@ export class AuditService {
     const where: Prisma.AuditLogWhereInput = {
       ...(query.entity ? { entity: query.entity } : {}),
       ...(query.action ? { action: query.action } : {}),
-      ...(query.actorId ? { actor_id: query.actorId } : {}),
+      ...(query.actorId ? { actorId: query.actorId } : {}),
     };
 
     const [items, total] = await prisma.$transaction([
       prisma.auditLog.findMany({
         where,
-        orderBy: { created_at: 'desc' },
+        orderBy: { createdAt: 'desc' },
         skip: (query.page - 1) * query.limit,
         take: query.limit,
         include: { actor: { select: { id: true, fullName: true, email: true } } },

@@ -26,9 +26,9 @@ export class RoomTypeService {
       select: {
         code: true,
         name: true,
-        min_area: true,
-        max_count: true,
-        default_count: true,
+        minArea: true,
+        maxCount: true,
+        defaultCount: true,
         selectable: true,
         sort: true,
       },
@@ -76,14 +76,14 @@ export class RoomTypeService {
       if (clash && clash.id !== id) throw badRequest('ROOM_TYPE_CODE_TAKEN', 'this room type code already exists');
     }
 
-    const minArea = data.min_area ?? existing.min_area;
-    const maxArea = data.max_area ?? existing.max_area;
+    const minArea = data.minArea ?? existing.minArea;
+    const maxArea = data.maxArea ?? existing.maxArea;
     if (maxArea <= minArea) {
       throw badRequest('ROOM_TYPE_AREA_RANGE', 'the maximum area must be larger than the minimum');
     }
 
-    const maxCount = data.max_count ?? existing.max_count;
-    const defaultCount = data.default_count ?? existing.default_count;
+    const maxCount = data.maxCount ?? existing.maxCount;
+    const defaultCount = data.defaultCount ?? existing.defaultCount;
     if (defaultCount > maxCount) {
       throw badRequest('ROOM_TYPE_DEFAULT_COUNT', 'the default count cannot exceed the maximum');
     }

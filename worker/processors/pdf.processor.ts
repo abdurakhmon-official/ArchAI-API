@@ -21,27 +21,27 @@ export async function processPdf(job: Job<PdfJob>): Promise<{ key: string; cache
 
   const existing = await prisma.projectExport.findUnique({
     where: {
-      project_id_kind_geometry_hash_watermark: {
-        project_id: projectId,
+      projectId_kind_geometryHash_watermark: {
+        projectId: projectId,
         kind: EXPORT_KIND.PDF,
-        geometry_hash: geometryHash,
+        geometryHash: geometryHash,
         watermark,
       },
     },
   });
 
-  if (existing && (!existing.expires_at || existing.expires_at > new Date())) {
-    return { key: existing.storage_key, cached: true };
+  if (existing && (!existing.expiresAt || existing.expiresAt > new Date())) {
+    return { key: existing.storageKey, cached: true };
   }
 
   await job.updateProgress(10);
 
   const project = await prisma.project.findUnique({
     where: { id: projectId },
-    include: { style: { include: { roof_style: true } } },
+    include: { style: { include: { roofStyle: true } } },
   });
 
-  if (!project || project.deleted_at) {
+  if (!project || project.deletedAt) {
     throw new Error(`project not found: ${projectId}`);
   }
 
@@ -94,10 +94,10 @@ export async function processPdf(job: Job<PdfJob>): Promise<{ key: string; cache
 
   const estimate =
     (project.estimate as unknown as EstimateResult | null) ??
-    computeEstimate(house, await loadPriceBook(project.finish_level));
+    computeEstimate(house, await loadPriceBook(project.finishLevel));
 
   const [finish, optionNames] = await Promise.all([
-    prisma.finishLevel.findUnique({ where: { code: project.finish_level } }),
+    prisma.finishLevel.findUnique({ where: { code: project.finishLevel } }),
     optionNamesFor(estimate, locale),
   ]);
 
@@ -106,7 +106,7 @@ export async function processPdf(job: Job<PdfJob>): Promise<{ key: string; cache
     title: project.title,
     note: project.note,
     styleName: translated(project.style?.name, locale) || '',
-    finishName: translated(finish?.name, locale) || project.finish_level,
+    finishName: translated(finish?.name, locale) || project.finishLevel,
     floors,
     estimate,
     names,
@@ -140,22 +140,22 @@ export async function processPdf(job: Job<PdfJob>): Promise<{ key: string; cache
 
   await prisma.projectExport.upsert({
     where: {
-      project_id_kind_geometry_hash_watermark: {
-        project_id: projectId,
+      projectId_kind_geometryHash_watermark: {
+        projectId: projectId,
         kind: EXPORT_KIND.PDF,
-        geometry_hash: geometryHash,
+        geometryHash: geometryHash,
         watermark,
       },
     },
-    update: { storage_key: key, size_bytes: buffer.byteLength, expires_at: expiresAt },
+    update: { storageKey: key, sizeBytes: buffer.byteLength, expiresAt: expiresAt },
     create: {
-      project_id: projectId,
+      projectId: projectId,
       kind: EXPORT_KIND.PDF,
-      storage_key: key,
-      geometry_hash: geometryHash,
+      storageKey: key,
+      geometryHash: geometryHash,
       watermark,
-      size_bytes: buffer.byteLength,
-      expires_at: expiresAt,
+      sizeBytes: buffer.byteLength,
+      expiresAt: expiresAt,
     },
   });
 

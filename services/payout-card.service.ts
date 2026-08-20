@@ -20,7 +20,7 @@ import { recordAudit } from '@/utils/audit';
 export class PayoutCardService {
   async list() {
     const cards = await prisma.payoutCard.findMany({
-      orderBy: [{ provider: 'asc' }, { created_at: 'desc' }],
+      orderBy: [{ provider: 'asc' }, { createdAt: 'desc' }],
     });
 
     return { success: true, data: cards };
@@ -30,7 +30,7 @@ export class PayoutCardService {
     const data = PayoutCardInputSchema.parse(input);
 
     const card = await prisma.payoutCard.create({
-      data: { ...data, active: false, created_by: actorId },
+      data: { ...data, active: false, createdBy: actorId },
     });
 
     await recordAudit({

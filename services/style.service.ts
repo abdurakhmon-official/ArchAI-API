@@ -13,7 +13,7 @@ export class StyleService {
     const items = await prisma.style.findMany({
       where: { status: CONTENT_STATUS.PUBLISHED },
       orderBy: { sort: 'asc' },
-      include: { roof_style: true },
+      include: { roofStyle: true },
     });
 
     return { success: true, data: items };
@@ -22,7 +22,7 @@ export class StyleService {
   async listAll() {
     const items = await prisma.style.findMany({
       orderBy: [{ sort: 'asc' }, { slug: 'asc' }],
-      include: { roof_style: true },
+      include: { roofStyle: true },
     });
     return { success: true, data: items };
   }
@@ -30,7 +30,7 @@ export class StyleService {
   async bySlug(slug: string) {
     const style = await prisma.style.findUnique({
       where: { slug },
-      include: { roof_style: true },
+      include: { roofStyle: true },
     });
     if (!style || style.status !== CONTENT_STATUS.PUBLISHED) {
       throw new NotFound('style not found');
@@ -46,7 +46,7 @@ export class StyleService {
         ...(slug ? { slug } : {}),
       },
       orderBy: { sort: 'asc' },
-      include: { roof_style: true },
+      include: { roofStyle: true },
     });
 
     if (styles.length === 0 && slug) {
@@ -95,7 +95,7 @@ export class StyleService {
     const existing = await prisma.style.findUnique({ where: { id } });
     if (!existing) throw new NotFound('style not found');
 
-    const used = await prisma.project.count({ where: { style_id: id } });
+    const used = await prisma.project.count({ where: { styleId: id } });
     if (used > 0) {
       const archived = await prisma.style.update({
         where: { id },

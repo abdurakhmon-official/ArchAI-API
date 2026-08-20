@@ -4,6 +4,7 @@ import { PAYMENT_PROVIDER, PAYMENT_STATUS, SUBSCRIPTION_STATUS } from '../genera
 import config from '@/config';
 import prisma from '@/modules/db';
 import { SubscriptionService } from '@/services/subscription.service';
+import { verifyPaymeAuth } from '@/utils/payme-auth';
 
 /**
  * Payme Merchant API.
@@ -64,11 +65,7 @@ export class PaymeService {
       throw new PaymeError(PAYME_ERROR.ACCESS_DENIED, 'Payme is not configured');
     }
 
-    const token = (header ?? '').replace(/^Basic\s+/i, '');
-    const decoded = Buffer.from(token, 'base64').toString('utf8');
-    const [login, key] = decoded.split(':');
-
-    if (login !== 'Paycom' || key !== config.payments.payme.secretKey) {
+    if (!verifyPaymeAuth(header, config.payments.payme.secretKey)) {
       throw new PaymeError(PAYME_ERROR.ACCESS_DENIED, 'Insufficient privilege');
     }
   }
@@ -147,7 +144,7 @@ export class PaymeService {
     };
 
     const payment = await this.subscriptions.recordPayment({
-      userId: subscription.user_id,
+      userId: subscription.userId,
       subscriptionId: subscription.id,
       provider: PAYMENT_PROVIDER.PAYME,
       externalId,
@@ -185,8 +182,8 @@ export class PaymeService {
 
     await this.subscriptions.activate(state.subscription_id, state.months);
     await this.subscriptions.recordPayment({
-      userId: payment.user_id,
-      subscriptionId: payment.subscription_id,
+      userId: payment.userId,
+      subscriptionId: payment.subscriptionId,
       provider: PAYMENT_PROVIDER.PAYME,
       externalId,
       amount: Number(payment.amount),
@@ -214,20 +211,22 @@ export class PaymeService {
       state.state === STATE.PERFORMED ? STATE.CANCELED_AFTER_PERFORM : STATE.CANCELED;
 
     // To'lov amalga oshgandan keyin bekor qilinsa, obuna ham to'xtatiladi.
-    if (state.state === STATE.PERFORMED && payment.subscription_id) {
+    if (state.state === STATE.PERFORMED && payment.subscriptionId) {
       await prisma.subscription.update({
-        where: { id: payment.subscription_id },
+        where: { id: payment.subscriptionId },
         data: { status: SUBSCRIPTION_STATUS.CANCELED },
       });
     }
 
     await this.subscriptions.recordPayment({
-      userId: payment.user_id,
-      subscriptionId: payment.subscription_id,
+      userId: payment.userId,
+      subscriptionId: payment.subscriptionId,
       provider: PAYMENT_PROVIDER.PAYME,
       externalId,
       amount: Number(payment.amount),
-      status: PAYMENT_STATUS.CANCELED,
+      // Cancelling a performed (already-paid) transaction is a refund, not
+      // a plain cancellation — the money was charged and is being returned.
+      status: state.state === STATE.PERFORMED ? PAYMENT_STATUS.REFUNDED : PAYMENT_STATUS.CANCELED,
       raw: {
         ...state,
         state: nextState,
@@ -262,8 +261,8 @@ export class PaymeService {
     const to = new Date(Number(params.to) || Date.now());
 
     const payments = await prisma.payment.findMany({
-      where: { provider: PAYMENT_PROVIDER.PAYME, created_at: { gte: from, lte: to } },
-      orderBy: { created_at: 'asc' },
+      where: { provider: PAYMENT_PROVIDER.PAYME, createdAt: { gte: from, lte: to } },
+      orderBy: { createdAt: 'asc' },
     });
 
     return {
@@ -271,7 +270,7 @@ export class PaymeService {
         const state = payment.raw as unknown as PaymeTransactionState;
 
         return {
-          id: payment.external_id,
+          id: payment.externalId,
           time: state.create_time,
           amount: Number(payment.amount) * TIYIN,
           account: { subscription_id: state.subscription_id },
@@ -315,7 +314,7 @@ export class PaymeService {
     }
 
     const months = 1;
-    const expected = Number(subscription.plan.price_uzs) * months * TIYIN;
+    const expected = Number(subscription.plan.priceUzs) * months * TIYIN;
     const amount = Number(params.amount);
 
     if (amount !== expected) {

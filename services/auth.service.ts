@@ -6,7 +6,7 @@ import {
   recordLoginFailure,
 } from '@/utils/login-guard';
 import { TooManyRequests } from '@/middlewares/rate-limit.middleware';
-import { comparePassword, createAccessToken, hashPassword } from '@/modules/auth';
+import { comparePassword, createAccessToken, hashPassword, needsRehash } from '@/modules/auth';
 import { badRequest, notFound, unauthorized } from '@/utils/errors';
 import { Inject, Injectable, InjectContext } from '@tsed/di';
 import { PlatformContext } from '@tsed/common';
@@ -24,8 +24,11 @@ import {
   ForgotPasswordInputSchema,
   ResetPasswordInput,
   ResetPasswordInputSchema,
+  PasswordStrengthInput,
+  PasswordStrengthInputSchema,
 } from '@/inputs/auth.input';
 import { TokenService } from '@/services/token.service';
+import { PasswordSecurityService } from '@/services/password-security.service';
 import { USER_PUBLIC_SELECT } from '@/utils/constants';
 import { USER_ROLE, VERIFICATION_PURPOSE } from '../generated/prisma';
 import { emailQueue } from '@/modules/queue';
@@ -39,6 +42,9 @@ export class AuthService {
 
   @Inject()
   private tokenService!: TokenService;
+
+  @Inject()
+  private passwordSecurityService!: PasswordSecurityService;
 
   get req() {
     return this.context.getRequest<Request>();
@@ -57,6 +63,8 @@ export class AuthService {
     if (existing) {
       throw badRequest('AUTH_EMAIL_TAKEN', 'email already registered');
     }
+
+    await this.assertPasswordSecure(data.password, [email, data.fullName]);
 
     const hasUsers = await prisma.user.count();
 
@@ -112,6 +120,17 @@ export class AuthService {
     }
 
     await clearLoginFailures(email);
+
+    if (needsRehash(user.password)) {
+      try {
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { password: await hashPassword(data.password) },
+        });
+      } catch (error) {
+        console.warn(`[auth] bcrypt->argon2 rehash failed for ${user.id}: ${(error as Error).message}`);
+      }
+    }
 
     return { success: true, data: createAccessToken(user) };
   }
@@ -206,12 +225,14 @@ export class AuthService {
     const user = await prisma.user.findUnique({ where: { id: claimed.userId } });
     if (!user) throw notFound('AUTH_USER_NOT_FOUND', 'user not found');
 
+    await this.assertPasswordSecure(data.newPassword, [user.email, user.fullName]);
+
     await prisma.user.update({
       where: { id: user.id },
       data: {
         password: await hashPassword(data.newPassword),
         // Bu sana barcha eski tokenlarni bir yo'la o'ldiradi.
-        password_changed_at: new Date(),
+        passwordChangedAt: new Date(),
       },
     });
 
@@ -233,7 +254,7 @@ export class AuthService {
     const user = await prisma.user.findUnique({ where: { id: this.user?.id } });
     if (!user) throw notFound('AUTH_USER_NOT_FOUND', 'user not found');
 
-    if (user.email_verified) {
+    if (user.emailVerified) {
       return { success: true, _code: 'AUTH_ALREADY_VERIFIED', _message: 'this address is already verified' };
     }
 
@@ -257,19 +278,28 @@ export class AuthService {
 
     await prisma.user.update({
       where: { id: claimed.userId },
-      data: { email_verified: true },
+      data: { emailVerified: true },
     });
 
     return { success: true, _code: 'AUTH_EMAIL_VERIFIED', _message: 'address verified' };
   }
 
-  /**
-   * Xatni navbatga qo'yish.
-   *
-   * Navbat ishlamayotgan bo'lsa XATO qaytadi. "Yubordik" deb aytib,
-   * aslida yubormaslik eng yomon variant: foydalanuvchi pochtasini
-   * kutib o'tiraveradi va muammo qayerda ekanini bilmaydi.
-   */
+  /** Live feedback for the strength meter — cheap, no HIBP lookup. */
+  passwordStrength(input: PasswordStrengthInput) {
+    const data = PasswordStrengthInputSchema.parse(input);
+    const score = this.passwordSecurityService.score(data.password, [data.email, data.fullName]);
+
+    return { success: true, data: { score } };
+  }
+
+  private async assertPasswordSecure(password: string, userInputs: (string | null | undefined)[]) {
+    const verdict = await this.passwordSecurityService.check(password, userInputs);
+
+    if (!verdict.ok) {
+      throw badRequest(verdict.code!, 'password is too weak or has appeared in a data breach', verdict.values);
+    }
+  }
+
   /**
    * Navbat tayyormi.
    *
@@ -309,11 +339,13 @@ export class AuthService {
       throw badRequest('AUTH_PASSWORD_SAME', 'the new password must differ from the current one');
     }
 
+    await this.assertPasswordSecure(data.newPassword, [user.email, user.fullName]);
+
     await prisma.user.update({
       where: { id: user.id },
       data: {
         password: await hashPassword(data.newPassword),
-        password_changed_at: new Date(),
+        passwordChangedAt: new Date(),
       },
     });
 

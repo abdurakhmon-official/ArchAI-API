@@ -1,9 +1,11 @@
+import { Req } from '@tsed/common';
 import { Controller, Inject } from '@tsed/di';
 import { BodyParams, PathParams, QueryParams } from '@tsed/platform-params';
 import { Delete, Get, Post, Put } from '@tsed/schema';
+import type { Request } from 'express';
 import { AdminOnly, Authorized } from '@/middlewares/auth.middleware';
 import { UserService } from '@/services/user.service';
-import { CreateUserInput, UpdateUserRoleInput } from '@/inputs/user.input';
+import { AssignUserPlanInput, CreateUserInput, UpdateUserRoleInput } from '@/inputs/user.input';
 import { BasicSearch } from '@/inputs';
 
 @Controller('/users')
@@ -27,6 +29,16 @@ export class UserController {
   @Authorized(AdminOnly())
   async updateRole(@PathParams('id') id: string, @BodyParams() data: UpdateUserRoleInput) {
     return await this.userService.updateRole(id, data);
+  }
+
+  @Put('/:id/plan')
+  @Authorized(AdminOnly())
+  async assignPlan(
+    @Req() request: Request,
+    @PathParams('id') id: string,
+    @BodyParams() data: AssignUserPlanInput,
+  ) {
+    return await this.userService.assignPlan(id, data, request.user!.id);
   }
 
   @Delete('/:id')

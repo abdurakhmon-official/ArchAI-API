@@ -86,8 +86,13 @@ export class StripeService {
         break;
 
       case 'checkout.session.expired':
+        await this.onFailed(event.data.object, PAYMENT_STATUS.FAILED);
+        break;
+
       case 'charge.refunded':
-        await this.onFailed(event.data.object as Stripe.Checkout.Session);
+        // The money was charged and is being returned, not just a failed
+        // attempt — the payment row should read REFUNDED, not FAILED.
+        await this.onFailed(event.data.object as unknown as Stripe.Checkout.Session, PAYMENT_STATUS.REFUNDED);
         break;
 
       default:
@@ -108,7 +113,7 @@ export class StripeService {
 
     await this.subscriptions.activate(subscriptionId, months);
     await this.subscriptions.recordPayment({
-      userId: subscription.user_id,
+      userId: subscription.userId,
       subscriptionId,
       provider: PAYMENT_PROVIDER.STRIPE,
       externalId: session.id,
@@ -118,7 +123,7 @@ export class StripeService {
     });
   }
 
-  private async onFailed(session: Stripe.Checkout.Session): Promise<void> {
+  private async onFailed(session: Stripe.Checkout.Session, status: PAYMENT_STATUS): Promise<void> {
     const subscriptionId = session.client_reference_id ?? session.metadata?.subscription_id;
     if (!subscriptionId) return;
 
@@ -126,12 +131,12 @@ export class StripeService {
     if (!subscription) return;
 
     await this.subscriptions.recordPayment({
-      userId: subscription.user_id,
+      userId: subscription.userId,
       subscriptionId,
       provider: PAYMENT_PROVIDER.STRIPE,
       externalId: session.id,
       amount: (session.amount_total ?? 0) / 100,
-      status: PAYMENT_STATUS.FAILED,
+      status,
       raw: session as unknown,
     });
   }

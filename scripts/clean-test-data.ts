@@ -69,7 +69,7 @@ const collect = async (): Promise<{ userIds: string[]; adminProjectIds: string[]
     matched by title.
   */
   const titled = await prisma.project.findMany({
-    where: { user_id: { notIn: userIds }, title: { in: TEST_PROJECT_TITLES } },
+    where: { userId: { notIn: userIds }, title: { in: TEST_PROJECT_TITLES } },
     select: { id: true },
   });
 
@@ -81,14 +81,14 @@ const count = async (): Promise<Summary> => {
 
   const [projects, posts, categories, leads, faq, media, profiles] = await Promise.all([
     prisma.project.count({
-      where: { OR: [{ user_id: { in: userIds } }, { id: { in: adminProjectIds } }] },
+      where: { OR: [{ userId: { in: userIds } }, { id: { in: adminProjectIds } }] },
     }),
     prisma.blogPost.count({ where: { OR: TEST_POST_PREFIXES.map((slug) => ({ slug: { startsWith: slug } })) } }),
     prisma.blogCategory.count({ where: { slug: { startsWith: 'kat-' } } }),
     prisma.lead.count({ where: { OR: TEST_LEAD_NAMES.map((name) => ({ name: { startsWith: name } })) } }),
     prisma.faqItem.count({ where: { category: 'sinov' } }),
     prisma.media.count({ where: { OR: TEST_MEDIA_PREFIXES.map((key) => ({ key: { startsWith: key } })) } }),
-    prisma.priceProfile.count({ where: { user_id: { in: userIds } } }),
+    prisma.priceProfile.count({ where: { userId: { in: userIds } } }),
   ]);
 
   return { users: userIds.length, projects, posts, categories, leads, faq, media, profiles };
@@ -109,16 +109,16 @@ const apply = async (): Promise<Summary> => {
   });
 
   const exports = await prisma.projectExport.findMany({
-    where: { OR: [{ project: { user_id: { in: userIds } } }, { project_id: { in: adminProjectIds } }] },
-    select: { storage_key: true },
+    where: { OR: [{ project: { userId: { in: userIds } } }, { projectId: { in: adminProjectIds } }] },
+    select: { storageKey: true },
   });
 
-  const keys = [...media.map((item) => item.key), ...exports.map((item) => item.storage_key)];
+  const keys = [...media.map((item) => item.key), ...exports.map((item) => item.storageKey)];
   if (keys.length > 0) await deleteObjects(keys);
 
   // Projects cascade to versions and exports; users cascade to projects.
   await prisma.project.deleteMany({ where: { id: { in: adminProjectIds } } });
-  await prisma.priceProfile.deleteMany({ where: { user_id: { in: userIds } } });
+  await prisma.priceProfile.deleteMany({ where: { userId: { in: userIds } } });
   await prisma.user.deleteMany({ where: { id: { in: userIds } } });
 
   await prisma.blogPost.deleteMany({

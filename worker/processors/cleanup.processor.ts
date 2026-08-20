@@ -20,7 +20,7 @@ export async function processCleanup(job: Job<CleanupJob>): Promise<Record<strin
 
 export async function purgeExpiredExports(): Promise<{ removed: number }> {
   const expired = await prisma.projectExport.findMany({
-    where: { expires_at: { lt: new Date() } },
+    where: { expiresAt: { lt: new Date() } },
     take: BATCH_SIZE,
   });
 
@@ -28,9 +28,9 @@ export async function purgeExpiredExports(): Promise<{ removed: number }> {
 
   for (const item of expired) {
     try {
-      await deleteObject(item.storage_key);
+      await deleteObject(item.storageKey);
     } catch (error) {
-      console.warn(`cleanup: ${item.storage_key} o'chmadi —`, (error as Error).message);
+      console.warn(`cleanup: ${item.storageKey} o'chmadi —`, (error as Error).message);
     }
 
     await prisma.projectExport.delete({ where: { id: item.id } });
@@ -45,8 +45,8 @@ async function purgeDeletedProjects(): Promise<{ projects: number; exports: numb
   deadline.setDate(deadline.getDate() - PURGE_AFTER_DAYS);
 
   const doomed = await prisma.project.findMany({
-    where: { deleted_at: { lt: deadline } },
-    select: { id: true, exports: { select: { id: true, storage_key: true } } },
+    where: { deletedAt: { lt: deadline } },
+    select: { id: true, exports: { select: { id: true, storageKey: true } } },
     take: BATCH_SIZE,
   });
 
@@ -55,7 +55,7 @@ async function purgeDeletedProjects(): Promise<{ projects: number; exports: numb
   for (const project of doomed) {
     for (const item of project.exports) {
       try {
-        await deleteObject(item.storage_key);
+        await deleteObject(item.storageKey);
         removedExports += 1;
       } catch {
       }
@@ -75,7 +75,7 @@ async function expireSubscriptions(): Promise<{ expired: number }> {
   const { count } = await prisma.subscription.updateMany({
     where: {
       status: SUBSCRIPTION_STATUS.ACTIVE,
-      period_end: { lt: new Date() },
+      periodEnd: { lt: new Date() },
     },
     data: { status: SUBSCRIPTION_STATUS.EXPIRED },
   });

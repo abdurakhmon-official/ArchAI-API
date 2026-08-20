@@ -1,10 +1,11 @@
 import type { ClickResponse } from '@/types/click.types';
-import { createHash } from 'node:crypto';
 import { Inject, Injectable } from '@tsed/di';
 import { PAYMENT_PROVIDER, PAYMENT_STATUS, SUBSCRIPTION_STATUS } from '../generated/prisma';
 import config from '@/config';
 import type { ClickRequest } from '@/inputs/billing.input';
+import prisma from '@/modules/db';
 import { SubscriptionService } from '@/services/subscription.service';
+import { verifyClickSignature } from '@/utils/click-signature';
 
 export const CLICK_ERROR = {
   OK: 0,
@@ -65,13 +66,13 @@ export class ClickService {
       return { ...base, error: CLICK_ERROR.ALREADY_PAID, error_note: 'subscription is already active' };
     }
 
-    const expected = Number(subscription.plan.price_uzs);
+    const expected = Number(subscription.plan.priceUzs);
     if (Math.abs(request.amount - expected) > 0.01) {
       return { ...base, error: CLICK_ERROR.INCORRECT_AMOUNT, error_note: 'Noto\'g\'ri summa' };
     }
 
     await this.subscriptions.recordPayment({
-      userId: subscription.user_id,
+      userId: subscription.userId,
       subscriptionId: subscription.id,
       provider: PAYMENT_PROVIDER.CLICK,
       externalId: request.click_trans_id,
@@ -114,7 +115,10 @@ export class ClickService {
       };
     }
 
-    if (payment.status === PAYMENT_STATUS.CANCELED) {
+    // REFUNDED is a cancellation that happened after payment (see
+    // `markCancelled`) — just as terminal as CANCELED, it must not fall
+    // through to being activated again below.
+    if (payment.status === PAYMENT_STATUS.CANCELED || payment.status === PAYMENT_STATUS.REFUNDED) {
       return {
         ...base,
         error: CLICK_ERROR.TRANSACTION_CANCELLED,
@@ -122,13 +126,13 @@ export class ClickService {
       };
     }
 
-    if (payment.subscription_id) {
-      await this.subscriptions.activate(payment.subscription_id, 1);
+    if (payment.subscriptionId) {
+      await this.subscriptions.activate(payment.subscriptionId, 1);
     }
 
     const updated = await this.subscriptions.recordPayment({
-      userId: payment.user_id,
-      subscriptionId: payment.subscription_id,
+      userId: payment.userId,
+      subscriptionId: payment.subscriptionId,
       provider: PAYMENT_PROVIDER.CLICK,
       externalId: request.click_trans_id,
       amount: Number(payment.amount),
@@ -152,35 +156,43 @@ export class ClickService {
 
     if (!payment) return;
 
+    // Cancelling a transaction that was already paid is a refund: the
+    // money was charged and is being returned, and the subscription it
+    // paid for stops instead of staying active for free.
+    const wasPaid = payment.status === PAYMENT_STATUS.PAID;
+
+    if (wasPaid && payment.subscriptionId) {
+      await prisma.subscription.update({
+        where: { id: payment.subscriptionId },
+        data: { status: SUBSCRIPTION_STATUS.CANCELED },
+      });
+    }
+
     await this.subscriptions.recordPayment({
-      userId: payment.user_id,
-      subscriptionId: payment.subscription_id,
+      userId: payment.userId,
+      subscriptionId: payment.subscriptionId,
       provider: PAYMENT_PROVIDER.CLICK,
       externalId: request.click_trans_id,
       amount: Number(payment.amount),
-      status: PAYMENT_STATUS.CANCELED,
+      status: wasPaid ? PAYMENT_STATUS.REFUNDED : PAYMENT_STATUS.CANCELED,
       raw: { ...request, stage: 'cancelled' },
     });
   }
 
   private verifySignature(request: ClickRequest): boolean {
-    const key = config.payments.click.secretKey;
-    if (!key) return false;
-
-    const parts = [
-      request.click_trans_id,
-      request.service_id,
-      key,
-      request.merchant_trans_id,
-      ...(request.action === 1 ? [request.merchant_prepare_id ?? ''] : []),
-      String(request.amount),
-      String(request.action),
-      request.sign_time,
-    ];
-
-    const expected = createHash('md5').update(parts.join('')).digest('hex');
-
-    return timingSafeEqual(expected, request.sign_string.toLowerCase());
+    return verifyClickSignature(
+      {
+        clickTransId: request.click_trans_id,
+        serviceId: request.service_id,
+        merchantTransId: request.merchant_trans_id,
+        merchantPrepareId: request.merchant_prepare_id,
+        amount: request.amount,
+        action: request.action,
+        signTime: request.sign_time,
+      },
+      config.payments.click.secretKey,
+      request.sign_string,
+    );
   }
 
   buildCheckoutUrl(subscriptionId: string, amount: number): string {
@@ -194,15 +206,4 @@ export class ClickService {
 
     return `https://my.click.uz/services/pay?${params.toString()}`;
   }
-}
-
-function timingSafeEqual(first: string, second: string): boolean {
-  if (first.length !== second.length) return false;
-
-  let diff = 0;
-  for (let index = 0; index < first.length; index++) {
-    diff |= first.charCodeAt(index) ^ second.charCodeAt(index);
-  }
-
-  return diff === 0;
 }

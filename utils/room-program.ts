@@ -3,8 +3,8 @@ import type { MessageCode } from '@/utils/messages';
 export interface SelectableRoomType {
   code: string;
   selectable: boolean;
-  max_count: number;
-  default_count: number;
+  maxCount: number;
+  defaultCount: number;
 }
 
 export class RoomProgramError extends Error {
@@ -35,11 +35,11 @@ export function assertRoomProgram(
       throw new RoomProgramError('ROOM_NOT_SELECTABLE', `"${code}" cannot be requested in the constructor`, { code });
     }
 
-    if (count > type.max_count) {
+    if (count > type.maxCount) {
       throw new RoomProgramError(
         'ROOM_MAX_COUNT',
-        `"${code}" allows at most ${type.max_count}, ${count} requested`,
-        { code, max: type.max_count, count },
+        `"${code}" allows at most ${type.maxCount}, ${count} requested`,
+        { code, max: type.maxCount, count },
       );
     }
 
@@ -53,7 +53,7 @@ export function defaultRoomProgram(types: SelectableRoomType[]): Record<string, 
   const result: Record<string, number> = {};
 
   for (const type of types) {
-    if (type.selectable && type.default_count > 0) result[type.code] = type.default_count;
+    if (type.selectable && type.defaultCount > 0) result[type.code] = type.defaultCount;
   }
 
   return result;

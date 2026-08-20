@@ -19,6 +19,12 @@ export const UpdateUserRoleInputSchema = z.object({
   role: z.nativeEnum(USER_ROLE),
 });
 
+export const AssignUserPlanInputSchema = z.object({
+  planCode: z.string().min(1),
+  password: z.string().min(1),
+});
+
 export type CreateUserInput = z.infer<typeof CreateUserInputSchema>;
 export type ChangePasswordInput = z.infer<typeof ChangePasswordInputSchema>;
 export type UpdateUserRoleInput = z.infer<typeof UpdateUserRoleInputSchema>;
+export type AssignUserPlanInput = z.infer<typeof AssignUserPlanInputSchema>;

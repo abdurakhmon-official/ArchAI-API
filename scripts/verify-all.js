@@ -1,3 +1,9 @@
+// Payme/Click/Stripe deep-flow checks need the same provider secrets the
+// server itself reads from `.env` (to build a valid Basic-auth header /
+// signature) — the script isn't normally launched through anything that
+// loads it otherwise.
+require('dotenv').config({ path: require('node:path').join(__dirname, '../.env') });
+
 const BASE = process.env.API_URL || 'http://localhost:9100/api';
 
 let pass = 0;
@@ -41,6 +47,58 @@ const section = (title) => console.log(`\n${title}`);
 // Accounts created during the run — removed at the end so they do not pile up.
 const createdAccounts = [];
 
+/**
+ * Like `call()`, but allows arbitrary headers (Payme Basic auth, Click
+ * doesn't need this, Stripe's `stripe-signature`). Kept separate from
+ * `call()` instead of extending it, so the existing helper — and every
+ * check built on top of it — stays untouched.
+ */
+async function callWithHeaders(method, path, { body, headers = {}, raw } = {}) {
+  const res = await fetch(BASE + path, {
+    method,
+    headers: {
+      ...(body && !raw ? { 'Content-Type': 'application/json' } : {}),
+      ...headers,
+    },
+    ...(body ? { body: raw ? body : JSON.stringify(body) } : {}),
+  });
+
+  let json = null;
+  try {
+    json = await res.json();
+  } catch {
+  }
+
+  return { status: res.status, json, headers: res.headers };
+}
+
+const paymeBasicAuth = (secret) => `Basic ${Buffer.from(`Paycom:${secret}`).toString('base64')}`;
+
+/** Mirrors `click.service.ts`'s `verifySignature` MD5 scheme exactly. */
+function clickSignature({
+  clickTransId,
+  serviceId,
+  secretKey,
+  merchantTransId,
+  merchantPrepareId,
+  amount,
+  action,
+  signTime,
+}) {
+  const parts = [
+    clickTransId,
+    serviceId,
+    secretKey,
+    merchantTransId,
+    ...(action === 1 ? [merchantPrepareId ?? ''] : []),
+    String(amount),
+    String(action),
+    signTime,
+  ];
+
+  return require('node:crypto').createHash('md5').update(parts.join('')).digest('hex');
+}
+
 const countLeaves = (node) =>
   node.kind === 'leaf' ? 1 : countLeaves(node.children[0]) + countLeaves(node.children[1]);
 
@@ -66,7 +124,7 @@ async function main() {
   section('1. AUTENTIFIKATSIYA');
   const email = `v${Date.now()}@archai.uz`;
   const reg = await call('POST', '/auth/signup', {
-    body: { fullName: 'Verify User', email, password: 'parol12345' },
+    body: { fullName: 'Verify User', email, password: 'tepakalla-sichqon-42' },
   });
   check('ro\'yxatdan o\'tish', reg.status === 200 && Boolean(reg.json?.data?.accessToken), `(${reg.status})`);
   const userToken = reg.json?.data?.accessToken;
@@ -214,7 +272,7 @@ async function main() {
   check('beshta tur so\'raladi', selectable.json?.data?.length === 5, `(${selectable.json?.data?.length})`);
   check(
     'chegara va sukut qaytadi',
-    selectable.json?.data?.every((r) => typeof r.max_count === 'number' && typeof r.default_count === 'number'),
+    selectable.json?.data?.every((r) => typeof r.maxCount === 'number' && typeof r.defaultCount === 'number'),
   );
   check(
     'xizmat xonalari ro\'yxatda yo\'q',
@@ -240,7 +298,7 @@ async function main() {
 
   const mansard = roofStyles.json?.data?.find((r) => r.family === 'mansard');
   const badMansard = await call('PUT', `/roof-styles/${mansard?.id}`, {
-    body: { pitch: 30, upper_pitch: 40 },
+    body: { pitch: 30, upperPitch: 40 },
     token: admin,
   });
   check('buzuq mansard rad etiladi', badMansard.status === 400, `(${badMansard.status})`);
@@ -251,7 +309,7 @@ async function main() {
       name: { uz: 'Sinov' },
       family: 'mansard',
       pitch: 30,
-      upper_pitch: 45,
+      upperPitch: 45,
     },
     token: admin,
   });
@@ -262,7 +320,7 @@ async function main() {
       code: `sinov-${Date.now().toString(36)}`,
       name: { uz: 'Sinov' },
       family: 'gable',
-      covering_id: (await call('GET', '/estimate/price-items')).json?.data
+      coveringId: (await call('GET', '/estimate/price-items')).json?.data
         ?.find((i) => i.code === 'wall_exterior')?.options?.[0]?.id,
     },
     token: admin,
@@ -308,12 +366,12 @@ async function main() {
       name: `Sinov andozasi ${Date.now().toString(36)}`,
       floors: 1,
       tree: { floors: [sampleTree.floors[0]] },
-      tag_bedrooms: [2, 3],
-      tag_styles: ['modern'],
-      min_width: 9,
-      max_width: 15,
-      min_length: 9,
-      max_length: 15,
+      tagBedrooms: [2, 3],
+      tagStyles: ['modern'],
+      minWidth: 9,
+      maxWidth: 15,
+      minLength: 9,
+      maxLength: 15,
       status: 'DRAFT',
     },
     token: admin,
@@ -481,8 +539,8 @@ async function main() {
   check('loyiha saqlandi', created.status === 200, `(${created.status})`);
 
   const projectId = created.json?.data?.id;
-  check('smeta saqlandi', Number(created.json?.data?.estimate_total) > 0);
-  check('muqova saqlandi', Boolean(created.json?.data?.cover_svg));
+  check('smeta saqlandi', Number(created.json?.data?.estimateTotal) > 0);
+  check('muqova saqlandi', Boolean(created.json?.data?.coverSvg));
 
   check('ro\'yxat ishlaydi', (await call('GET', '/projects', { token: admin })).status === 200);
   check('bitta loyiha olish', (await call('GET', `/projects/${projectId}`, { token: admin })).status === 200);
@@ -557,7 +615,7 @@ async function main() {
   check("mehmon ulashilganni ko'radi", publicView.status === 200, `(${publicView.status})`);
   check(
     'egasi oshkor qilinmaydi',
-    !('user' in (publicView.json?.data ?? {})) && !('user_id' in (publicView.json?.data ?? {})),
+    !('user' in (publicView.json?.data ?? {})) && !('userId' in (publicView.json?.data ?? {})),
     JSON.stringify(Object.keys(publicView.json?.data ?? {})),
   );
 
@@ -589,17 +647,17 @@ async function main() {
 
   // Materiallar tanlovi: saqlanadi, summani o'zgartiradi va tarifdan
   // qat'i nazar ochiq bo'lishi kerak.
-  const beforePick = Number((await call('GET', `/projects/${projectId}`, { token: admin })).json?.data?.estimate_total);
+  const beforePick = Number((await call('GET', `/projects/${projectId}`, { token: admin })).json?.data?.estimateTotal);
 
   const picked = await call('PATCH', `/projects/${projectId}/estimate`, {
     body: { selection: { wall_exterior: { optionCode: 'sendvich' } } },
     token: admin,
   });
   check('tanlov saqlandi', picked.status === 200, `(${picked.status})`);
-  check('tanlov summani tushirdi', Number(picked.json?.data?.estimate_total) < beforePick);
+  check('tanlov summani tushirdi', Number(picked.json?.data?.estimateTotal) < beforePick);
   check(
     'tanlov loyihada qoldi',
-    picked.json?.data?.estimate_selection?.wall_exterior?.optionCode === 'sendvich',
+    picked.json?.data?.estimateSelection?.wall_exterior?.optionCode === 'sendvich',
   );
 
   const withOwn = await call('PATCH', `/projects/${projectId}/estimate`, {
@@ -738,6 +796,423 @@ async function main() {
   const stripeNoSig = await call('POST', '/webhook/stripe', { body: '{}', raw: true });
   check('stripe: imzosiz rad etiladi', stripeNoSig.status === 400, `(${stripeNoSig.status})`);
 
+  // ---------------------------------------------------- PAYME: TO'LIQ SIKL
+  const paymeSecret = process.env.PAYME_SECRET_KEY;
+
+  if (!paymeSecret) {
+    console.log("    diqqat: PAYME_SECRET_KEY sozlanmagan — to'liq sikl sinalmadi");
+  } else {
+    const paymeAuth = paymeBasicAuth(paymeSecret);
+    const paymeBadAuth = paymeBasicAuth('notogri-kalit');
+
+    /*
+      `id` here is the Payme transaction id — it belongs inside `params`
+      (that's what `payme.service.ts` reads to look up the transaction),
+      not just the outer JSON-RPC envelope. `CheckPerformTransaction`
+      ignores it since no transaction exists yet, so injecting it
+      unconditionally is harmless there.
+    */
+    const paymeRpc = (id, method, params, auth = paymeAuth) =>
+      callWithHeaders('POST', '/webhook/payme', {
+        body: { method, params: { id, ...params }, id },
+        headers: { Authorization: auth },
+      });
+
+    const paymeCheckout = await call('POST', '/billing/checkout', {
+      body: { planCode: 'basic', provider: 'PAYME', months: 1 },
+      token: userToken,
+    });
+    const paymeSubId = paymeCheckout.json?.data?.subscriptionId;
+    const paymeAmountTiyin = Math.round((paymeCheckout.json?.data?.amount ?? 0) * 100);
+    const paymeExternalId = `verify-payme-${Date.now()}`;
+    const account = { subscription_id: paymeSubId };
+
+    const checkOk = await paymeRpc(paymeExternalId, 'CheckPerformTransaction', {
+      amount: paymeAmountTiyin,
+      account,
+    });
+    check("payme: to'g'ri so'rov ruxsat beradi", checkOk.json?.result?.allow === true, JSON.stringify(checkOk.json));
+
+    const checkBadAuth = await paymeRpc(
+      paymeExternalId,
+      'CheckPerformTransaction',
+      { amount: paymeAmountTiyin, account },
+      paymeBadAuth,
+    );
+    check(
+      "payme: noto'g'ri kalit rad etiladi",
+      checkBadAuth.json?.error?.code === -32504,
+      `(${checkBadAuth.json?.error?.code})`,
+    );
+
+    const checkBadAmount = await paymeRpc(paymeExternalId, 'CheckPerformTransaction', {
+      amount: paymeAmountTiyin + 1,
+      account,
+    });
+    check(
+      "payme: noto'g'ri summa rad etiladi",
+      checkBadAmount.json?.error?.code === -31001,
+      `(${checkBadAmount.json?.error?.code})`,
+    );
+
+    const checkNoSub = await paymeRpc(paymeExternalId, 'CheckPerformTransaction', {
+      amount: paymeAmountTiyin,
+      account: { subscription_id: 'yoq-bunday-obuna' },
+    });
+    check(
+      "payme: mavjud bo'lmagan obuna rad etiladi",
+      checkNoSub.json?.error?.code === -31050,
+      `(${checkNoSub.json?.error?.code})`,
+    );
+
+    const created = await paymeRpc(paymeExternalId, 'CreateTransaction', {
+      time: Date.now(),
+      amount: paymeAmountTiyin,
+      account,
+    });
+    check("payme: tranzaksiya yaratildi", created.json?.result?.state === 1, JSON.stringify(created.json));
+
+    const createdAgain = await paymeRpc(paymeExternalId, 'CreateTransaction', {
+      time: Date.now(),
+      amount: paymeAmountTiyin,
+      account,
+    });
+    check(
+      'payme: takroriy yaratish idempotent (yangisi ochilmaydi)',
+      createdAgain.json?.result?.transaction === created.json?.result?.transaction,
+      `(${createdAgain.json?.result?.transaction} vs ${created.json?.result?.transaction})`,
+    );
+
+    const performed = await paymeRpc(paymeExternalId, 'PerformTransaction', {});
+    check("payme: to'lov amalga oshdi", performed.json?.result?.state === 2, JSON.stringify(performed.json));
+
+    const afterPerform = await call('GET', '/billing/subscription', { token: userToken });
+    check(
+      'payme: obuna faollashdi',
+      afterPerform.json?.data?.subscription?.status === 'ACTIVE',
+      JSON.stringify(afterPerform.json?.data?.subscription),
+    );
+
+    const performedAgain = await paymeRpc(paymeExternalId, 'PerformTransaction', {});
+    check(
+      "payme: takroriy amalga oshirish idempotent (qayta faollashtirmaydi)",
+      performedAgain.json?.result?.state === 2 &&
+        performedAgain.json?.result?.perform_time === performed.json?.result?.perform_time,
+      `(${performedAgain.json?.result?.perform_time} vs ${performed.json?.result?.perform_time})`,
+    );
+
+    const checkAlreadyActive = await paymeRpc(`${paymeExternalId}-active`, 'CheckPerformTransaction', {
+      amount: paymeAmountTiyin,
+      account,
+    });
+    check(
+      "payme: allaqachon faol obunaga yangi to'lov rad etiladi",
+      checkAlreadyActive.json?.error?.code === -31008,
+      `(${checkAlreadyActive.json?.error?.code})`,
+    );
+
+    const cancelled = await paymeRpc(paymeExternalId, 'CancelTransaction', { reason: 1 });
+    check(
+      "payme: to'lovdan keyin bekor qilinadi (qaytarish)",
+      cancelled.json?.result?.state === -2,
+      JSON.stringify(cancelled.json),
+    );
+
+    const afterCancel = await call('GET', '/billing/subscription', { token: userToken });
+    check(
+      "payme: bekor qilingandan keyin obuna faol emas",
+      !afterCancel.json?.data?.subscription,
+      JSON.stringify(afterCancel.json?.data?.subscription),
+    );
+
+    const cancelledAgain = await paymeRpc(paymeExternalId, 'CancelTransaction', { reason: 1 });
+    check(
+      'payme: takroriy bekor qilish idempotent',
+      cancelledAgain.json?.result?.state === -2 &&
+        cancelledAgain.json?.result?.cancel_time === cancelled.json?.result?.cancel_time,
+      `(${cancelledAgain.json?.result?.cancel_time} vs ${cancelled.json?.result?.cancel_time})`,
+    );
+
+    const unknownPerform = await paymeRpc(`yoq-${Date.now()}`, 'PerformTransaction', {});
+    check(
+      "payme: mavjud bo'lmagan tranzaksiya topilmadi",
+      unknownPerform.json?.error?.code === -31003,
+      `(${unknownPerform.json?.error?.code})`,
+    );
+
+    // ---- bir vaqtda ikki chaqiruv: @@unique([provider, externalId]) ishlaydimi ----
+    const raceCheckout = await call('POST', '/billing/checkout', {
+      body: { planCode: 'basic', provider: 'PAYME', months: 1 },
+      token: userToken,
+    });
+    const raceSubId = raceCheckout.json?.data?.subscriptionId;
+    const raceAmountTiyin = Math.round((raceCheckout.json?.data?.amount ?? 0) * 100);
+    const raceExternalId = `verify-payme-race-${Date.now()}`;
+    const raceParams = {
+      time: Date.now(),
+      amount: raceAmountTiyin,
+      account: { subscription_id: raceSubId },
+    };
+
+    const [raceA, raceB] = await Promise.all([
+      paymeRpc(raceExternalId, 'CreateTransaction', raceParams),
+      paymeRpc(raceExternalId, 'CreateTransaction', raceParams),
+    ]);
+    check(
+      'payme: bir vaqtda ikki CreateTransaction bitta tranzaksiya beradi',
+      Boolean(raceA.json?.result?.transaction) &&
+        raceA.json?.result?.transaction === raceB.json?.result?.transaction,
+      `(${raceA.json?.result?.transaction} vs ${raceB.json?.result?.transaction})`,
+    );
+
+    // Tozalash: yarim ochiq qolgan race tranzaksiyasini bekor qilamiz.
+    await paymeRpc(raceExternalId, 'CancelTransaction', { reason: 1 });
+  }
+
+  // ---------------------------------------------------- CLICK: TO'LIQ SIKL
+  const clickSecret = process.env.CLICK_SECRET_KEY;
+  const clickServiceId = process.env.CLICK_SERVICE_ID;
+
+  if (!clickSecret) {
+    console.log("    diqqat: CLICK_SECRET_KEY sozlanmagan — to'liq sikl sinalmadi");
+  } else {
+    const clickCheckout = await call('POST', '/billing/checkout', {
+      body: { planCode: 'basic', provider: 'CLICK', months: 1 },
+      token: userToken,
+    });
+    const clickSubId = clickCheckout.json?.data?.subscriptionId;
+    const clickAmount = clickCheckout.json?.data?.amount ?? 0;
+    const clickTransId = `verify-click-${Date.now()}`;
+    const signTime = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    const sign = (fields) => clickSignature({ serviceId: clickServiceId, secretKey: clickSecret, signTime, ...fields });
+
+    const prepareSign = sign({ clickTransId, merchantTransId: clickSubId, amount: clickAmount, action: 0 });
+    const prepare = await callWithHeaders('POST', '/webhook/click', {
+      body: {
+        click_trans_id: clickTransId,
+        service_id: clickServiceId,
+        merchant_trans_id: clickSubId,
+        amount: clickAmount,
+        action: 0,
+        sign_time: signTime,
+        sign_string: prepareSign,
+      },
+    });
+    check(
+      "click: to'g'ri prepare qabul qilinadi",
+      prepare.json?.error === 0 && prepare.json?.merchant_prepare_id === clickTransId,
+      JSON.stringify(prepare.json),
+    );
+
+    const prepareBadSign = await callWithHeaders('POST', '/webhook/click', {
+      body: {
+        click_trans_id: clickTransId,
+        service_id: clickServiceId,
+        merchant_trans_id: clickSubId,
+        amount: clickAmount,
+        action: 0,
+        sign_time: signTime,
+        sign_string: 'yomon-imzo',
+      },
+    });
+    check("click: noto'g'ri imzo rad etiladi", prepareBadSign.json?.error === -1, `(${prepareBadSign.json?.error})`);
+
+    const wrongAmount = clickAmount + 1000;
+    const wrongAmountTransId = `${clickTransId}-wrong-amount`;
+    const wrongAmountSign = sign({
+      clickTransId: wrongAmountTransId,
+      merchantTransId: clickSubId,
+      amount: wrongAmount,
+      action: 0,
+    });
+    const prepareWrongAmount = await callWithHeaders('POST', '/webhook/click', {
+      body: {
+        click_trans_id: wrongAmountTransId,
+        service_id: clickServiceId,
+        merchant_trans_id: clickSubId,
+        amount: wrongAmount,
+        action: 0,
+        sign_time: signTime,
+        sign_string: wrongAmountSign,
+      },
+    });
+    check(
+      "click: noto'g'ri summa rad etiladi",
+      prepareWrongAmount.json?.error === -2,
+      `(${prepareWrongAmount.json?.error})`,
+    );
+
+    const noSubTransId = `${clickTransId}-no-sub`;
+    const noSubSign = sign({
+      clickTransId: noSubTransId,
+      merchantTransId: 'yoq-bunday-obuna',
+      amount: clickAmount,
+      action: 0,
+    });
+    const prepareNoSub = await callWithHeaders('POST', '/webhook/click', {
+      body: {
+        click_trans_id: noSubTransId,
+        service_id: clickServiceId,
+        merchant_trans_id: 'yoq-bunday-obuna',
+        amount: clickAmount,
+        action: 0,
+        sign_time: signTime,
+        sign_string: noSubSign,
+      },
+    });
+    check(
+      "click: mavjud bo'lmagan obuna rad etiladi",
+      prepareNoSub.json?.error === -5,
+      `(${prepareNoSub.json?.error})`,
+    );
+
+    const completeSign = sign({
+      clickTransId,
+      merchantTransId: clickSubId,
+      merchantPrepareId: clickTransId,
+      amount: clickAmount,
+      action: 1,
+    });
+    const completeBody = {
+      click_trans_id: clickTransId,
+      service_id: clickServiceId,
+      merchant_trans_id: clickSubId,
+      merchant_prepare_id: clickTransId,
+      amount: clickAmount,
+      action: 1,
+      sign_time: signTime,
+      sign_string: completeSign,
+    };
+    const complete = await callWithHeaders('POST', '/webhook/click', { body: completeBody });
+    check(
+      'click: complete faollashtiradi',
+      complete.json?.error === 0 && Boolean(complete.json?.merchant_confirm_id),
+      JSON.stringify(complete.json),
+    );
+
+    const afterClickComplete = await call('GET', '/billing/subscription', { token: userToken });
+    check(
+      'click: obuna faollashdi',
+      afterClickComplete.json?.data?.subscription?.status === 'ACTIVE',
+      JSON.stringify(afterClickComplete.json?.data?.subscription),
+    );
+    const periodEndFirst = afterClickComplete.json?.data?.subscription?.periodEnd;
+
+    const completeAgain = await callWithHeaders('POST', '/webhook/click', { body: completeBody });
+    check('click: takroriy complete idempotent', completeAgain.json?.error === 0, `(${completeAgain.json?.error})`);
+
+    const afterSecondComplete = await call('GET', '/billing/subscription', { token: userToken });
+    check(
+      'click: takroriy complete obunani qayta faollashtirmadi',
+      afterSecondComplete.json?.data?.subscription?.periodEnd === periodEndFirst,
+      `(${afterSecondComplete.json?.data?.subscription?.periodEnd} vs ${periodEndFirst})`,
+    );
+
+    const activeTransId = `${clickTransId}-active`;
+    const activeSign = sign({ clickTransId: activeTransId, merchantTransId: clickSubId, amount: clickAmount, action: 0 });
+    const prepareOnActive = await callWithHeaders('POST', '/webhook/click', {
+      body: {
+        click_trans_id: activeTransId,
+        service_id: clickServiceId,
+        merchant_trans_id: clickSubId,
+        amount: clickAmount,
+        action: 0,
+        sign_time: signTime,
+        sign_string: activeSign,
+      },
+    });
+    check(
+      "click: allaqachon faol obunaga prepare rad etiladi",
+      prepareOnActive.json?.error === -4,
+      `(${prepareOnActive.json?.error})`,
+    );
+
+    const unknownId = `yoq-${Date.now()}`;
+    const unknownSign = sign({
+      clickTransId: unknownId,
+      merchantTransId: clickSubId,
+      merchantPrepareId: unknownId,
+      amount: clickAmount,
+      action: 1,
+    });
+    const unknownComplete = await callWithHeaders('POST', '/webhook/click', {
+      body: {
+        click_trans_id: unknownId,
+        service_id: clickServiceId,
+        merchant_trans_id: clickSubId,
+        merchant_prepare_id: unknownId,
+        amount: clickAmount,
+        action: 1,
+        sign_time: signTime,
+        sign_string: unknownSign,
+      },
+    });
+    check(
+      "click: mavjud bo'lmagan tranzaksiya topilmadi",
+      unknownComplete.json?.error === -6,
+      `(${unknownComplete.json?.error})`,
+    );
+
+    const clickCancel = await callWithHeaders('POST', '/webhook/click', {
+      body: { ...completeBody, error: -1 },
+    });
+    check(
+      "click: to'lovdan keyin bekor qilinadi (qaytarish)",
+      clickCancel.json?.error === -9,
+      JSON.stringify(clickCancel.json),
+    );
+
+    const afterClickCancel = await call('GET', '/billing/subscription', { token: userToken });
+    check(
+      "click: bekor qilingandan keyin obuna faol emas",
+      !afterClickCancel.json?.data?.subscription,
+      JSON.stringify(afterClickCancel.json?.data?.subscription),
+    );
+
+    const completeAfterCancel = await callWithHeaders('POST', '/webhook/click', { body: completeBody });
+    check(
+      "click: bekor qilingan tranzaksiyani complete qilib bo'lmaydi",
+      completeAfterCancel.json?.error === -9,
+      `(${completeAfterCancel.json?.error})`,
+    );
+  }
+
+  // ---------------------------------------------------- STRIPE: IMZO SINOVI
+  const stripeWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+  if (stripeWebhookSecret) {
+    /*
+      STRIPE_SECRET_KEY ataylab sozlanmagan (haqiqiy Stripe kaliti yo'q —
+      qo'ysak /billing/providers uni "tayyor" deb ko'rsatib, yuqoridagi
+      checkout sinovi Stripe'ning haqiqiy API'siga soxta kalit bilan
+      murojaat qilib yiqilardi). Shuning uchun imzo TO'LIQ qabul qilinishi
+      (obuna faollashishi) shu muhitda sinalmaydi — faqat soxta/yaroqsiz
+      holatlar hech qachon muvaffaqiyat yoki halokatga olib kelmasligi
+      tekshiriladi.
+    */
+    const payload = JSON.stringify({ id: 'evt_verify_test', type: 'checkout.session.completed' });
+    const timestamp = Math.floor(Date.now() / 1000);
+    const forgedSig = require('node:crypto')
+      .createHmac('sha256', 'notogri-webhook-secret')
+      .update(`${timestamp}.${payload}`)
+      .digest('hex');
+
+    const stripeForged = await callWithHeaders('POST', '/webhook/stripe', {
+      body: payload,
+      raw: true,
+      headers: { 'stripe-signature': `t=${timestamp},v1=${forgedSig}` },
+    });
+    check(
+      "stripe: soxta imzo hech qachon qabul qilinmaydi",
+      stripeForged.status === 400,
+      `(${stripeForged.status})`,
+    );
+
+    console.log(
+      "    diqqat: STRIPE_SECRET_KEY sozlanmagan (haqiqiy API kaliti yo'q) — to'liq qabul qilish sikli sinalmadi",
+    );
+  }
+
   // ------------------------------------------------------- BLOG / FAQ / LEAD
   section('10. BLOG / FAQ / SO\'ROVLAR');
   const category = await call('POST', '/blog/categories', {
@@ -753,7 +1228,7 @@ async function main() {
       title: { uz: 'Sinov maqola' },
       body: { type: 'doc', content: [] },
       status: 'PUBLISHED',
-      category_id: category.json?.data?.id,
+      categoryId: category.json?.data?.id,
     },
     token: admin,
   });
@@ -980,11 +1455,11 @@ async function main() {
 
   const startPlan = adminPlans.json?.data?.find((row) => row.code === 'pro');
   const planUpdate = await call('PUT', `/plans/${startPlan?.id}`, {
-    body: { price_uzs: 199_000 },
+    body: { priceUzs: 199_000 },
     token: admin,
   });
   check('tarif narxi o\'zgardi', planUpdate.status === 200, `(${planUpdate.status})`);
-  check('yangi narx qaytdi', Number(planUpdate.json?.data?.price_uzs) === 199_000);
+  check('yangi narx qaytdi', Number(planUpdate.json?.data?.priceUzs) === 199_000);
 
   const badLimits = await call('PUT', `/plans/${startPlan?.id}`, {
     // `variants` yo'q — chala `limits` `plan.middleware.ts` da jimgina
@@ -996,7 +1471,7 @@ async function main() {
 
   // Narxni qaytaramiz.
   await call('PUT', `/plans/${startPlan?.id}`, {
-    body: { price_uzs: Number(startPlan.price_uzs) },
+    body: { priceUzs: Number(startPlan.priceUzs) },
     token: admin,
   });
 
@@ -1066,10 +1541,10 @@ async function main() {
   const leadId = noteLead.json?.data?.id;
 
   const noted = await call('PUT', `/leads/${leadId}`, {
-    body: { admin_note: 'Ichki qayd' },
+    body: { adminNote: 'Ichki qayd' },
     token: admin,
   });
-  check('murojaatga izoh yoziladi', noted.status === 200 && noted.json?.data?.admin_note === 'Ichki qayd', `(${noted.status})`);
+  check('murojaatga izoh yoziladi', noted.status === 200 && noted.json?.data?.adminNote === 'Ichki qayd', `(${noted.status})`);
   // Izoh mijoz xabarini almashtirmasligi kerak.
   check('mijoz xabari saqlanadi', noted.json?.data?.message === 'Asl xabar');
 
@@ -1080,8 +1555,8 @@ async function main() {
   // Faqat holat yuborilganda izoh o'chib ketmasligi kerak.
   check(
     "holat izohni o'chirmaydi",
-    statusOnly.json?.data?.status === 'CONTACTED' && statusOnly.json?.data?.admin_note === 'Ichki qayd',
-    JSON.stringify({ s: statusOnly.json?.data?.status, n: statusOnly.json?.data?.admin_note }),
+    statusOnly.json?.data?.status === 'CONTACTED' && statusOnly.json?.data?.adminNote === 'Ichki qayd',
+    JSON.stringify({ s: statusOnly.json?.data?.status, n: statusOnly.json?.data?.adminNote }),
   );
 
   check("bo'sh yangilash rad etiladi", (await call('PUT', `/leads/${leadId}`, { body: {}, token: admin })).status === 400);
@@ -1107,9 +1582,9 @@ async function main() {
     'tanlash uchun kerakli maydonlar bor',
     skeletonRows.json?.data?.every(
       (row) =>
-        Array.isArray(row.tag_bedrooms) &&
-        typeof row.min_width === 'number' &&
-        typeof row.max_length === 'number',
+        Array.isArray(row.tagBedrooms) &&
+        typeof row.minWidth === 'number' &&
+        typeof row.maxLength === 'number',
     ),
   );
 
@@ -1164,15 +1639,34 @@ async function main() {
   section('15. XAVFSIZLIK');
 
   // --- Parol siyosati ------------------------------------------------------
-  const weak = await call('POST', '/auth/signup', {
-    body: { fullName: 'Zaif', email: `w${Date.now()}@archai.uz`, password: 'qisqa1' },
+  //
+  // Zod faqat uzunlikni tekshiradi (12–128); zaiflik va sizib chiqqanlik
+  // `PasswordSecurityService` (zxcvbn-ts + HIBP) zimmasida — shu sabab
+  // pastdagi ikkita parol ATAYLAB 12 belgidan uzun tanlangan, aks holda
+  // ular Zod bosqichida qaytarilib, keyingi bosqich sinalmay qolardi.
+  const short = await call('POST', '/auth/signup', {
+    body: { fullName: 'Qisqa', email: `sh${Date.now()}@archai.uz`, password: 'qisqa12345' },
   });
-  check('qisqa parol rad etiladi', weak.status === 400, `(${weak.status})`);
+  check('12 belgidan qisqa parol rad etiladi', short.status === 400, `(${short.status})`);
 
-  const common = await call('POST', '/auth/signup', {
-    body: { fullName: 'Oddiy', email: `c${Date.now()}@archai.uz`, password: 'password123' },
+  const weak = await call('POST', '/auth/signup', {
+    body: { fullName: 'Zaif', email: `w${Date.now()}@archai.uz`, password: 'aaaaaaaaaaaa' },
   });
-  check('keng tarqalgan parol rad etiladi', common.status === 400, `(${common.status})`);
+  check('kuchsiz lekin uzun parol rad etiladi', weak.status === 400, `(${weak.status})`);
+
+  /*
+    HIBP — "correcthorsebatterystaple" zxcvbn bo'yicha KUCHLI (4 ball),
+    lekin sizib chiqqan parollar bazasida bor. Aynan shu tanlov ikki
+    tekshiruvni bir-biridan ajratadi: agar HIBP so'rovi sindirilsa
+    (pastdagi "Salbiy sinov"ga qarang), bu parol zxcvbn balli
+    o'tib ketgani uchun QABUL qilinib qoladi — demak sinov haqiqatan
+    ham HIBP yo'lini tekshiradi, zxcvbn'ni emas.
+  */
+  const breachedEmail = `br${Date.now()}@archai.uz`;
+  const breached = await call('POST', '/auth/signup', {
+    body: { fullName: 'Sizib chiqqan', email: breachedEmail, password: 'correcthorsebatterystaple' },
+  });
+  check('HIBP da topilgan parol rad etiladi', breached.status === 400, `(${breached.status})`);
 
   const derivedEmail = `deriv${Date.now()}@archai.uz`;
   const derived = await call('POST', '/auth/signup', {
@@ -1187,6 +1681,16 @@ async function main() {
     body: { fullName: 'Kuchli', email: strongEmail, password: 'tepakalla-sichqon-42' },
   });
   check('kuchli parol qabul qilinadi', strong.status === 200, `(${strong.status})`);
+
+  /*
+    Argon2id migratsiyasi bevosita bu yerda sinalmaydi: bu skript faqat
+    HTTP orqali ishlaydi, xesh prefiksini bazadan ko'rmasdan turib
+    bilib bo'lmaydi. Lekin skriptning o'zi ishga tushishi allaqachon
+    buni isbotlaydi — `admin` tokeni skript boshida aynan shu hisob
+    bilan kirib olingan, demak `comparePassword`ning bcrypt zaxira
+    yo'li (agar hali ko'chmagan bo'lsa) yoki Argon2 yo'li (ko'chgan
+    bo'lsa) ishlagan.
+  */
 
   // --- Kirish urinishlari chegarasi ---------------------------------------
   //
@@ -1252,6 +1756,147 @@ async function main() {
   }
 
   console.log(`\ntozalandi: ${stale.length} hisob`);
+
+  // ------------------------------------------------ TO'LOV KARTALARI (admin)
+  section("16. TO'LOV KARTALARI (admin)");
+
+  check('ro\'yxat mehmonga yopiq', (await call('GET', '/payout-cards')).status === 401);
+
+  /*
+    `userToken` bu yergacha eskirgan bo'lishi mumkin (1-bo'limda parol
+    tiklash uni bekor qiladi) — shu sabab bu yerga alohida, yangi
+    oddiy foydalanuvchi olinadi.
+  */
+  const payoutViewerEmail = `payout-viewer-${Date.now()}@archai.uz`;
+  const payoutViewer = await call('POST', '/auth/signup', {
+    body: { fullName: 'Payout Viewer', email: payoutViewerEmail, password: 'tepakalla-sichqon-42' },
+  });
+  const payoutViewerToken = payoutViewer.json?.data?.accessToken;
+
+  check(
+    'ro\'yxat oddiy foydalanuvchiga yopiq',
+    (await call('GET', '/payout-cards', { token: payoutViewerToken })).status === 403,
+  );
+
+  const billingSecret = process.env.BILLING_SECRET;
+
+  if (!billingSecret) {
+    console.log("    diqqat: BILLING_SECRET sozlanmagan — to'lov kartalari sinalmadi");
+  } else {
+    const payoutCall = (method, path, { body, secret } = {}) =>
+      callWithHeaders(method, path, {
+        body,
+        headers: {
+          Authorization: `Bearer ${admin}`,
+          ...(secret !== undefined ? { 'X-Billing-Secret': secret } : {}),
+        },
+      });
+
+    /*
+      Oldingi (masalan, yarim yiqilgan) yugurishdan qolgan nofaol sinov
+      kartalarini tozalaymiz. Faol qolgan bo'lsa tegmaymiz — uni pastda
+      yangi faol karta o'zi almashtiradi va shundan keyin nofaolga
+      aylanib, KEYINGI yugurishda shu yerda tozalanadi.
+    */
+    const before = await call('GET', '/payout-cards', { token: admin });
+    for (const row of before.json?.data ?? []) {
+      if (row.label.startsWith('Verify Test') && !row.active) {
+        await payoutCall('DELETE', `/payout-cards/${row.id}`, { secret: billingSecret });
+      }
+    }
+
+    const cardBody = (label) => ({
+      provider: 'CLICK',
+      label,
+      last4: '4242',
+      holder: 'Verify Holder',
+      expiry: '12/30',
+      accountId: 'verify-merchant-account',
+    });
+
+    const createNoSecret = await payoutCall('POST', '/payout-cards', { body: cardBody('Verify Test A') });
+    check(
+      "karta: kalitsiz qo'shish rad etiladi",
+      createNoSecret.status === 403 && createNoSecret.json?._code === 'BILLING_SECRET_INVALID',
+      `(${createNoSecret.status} ${createNoSecret.json?._code})`,
+    );
+
+    const createBadSecret = await payoutCall('POST', '/payout-cards', {
+      body: cardBody('Verify Test A'),
+      secret: 'notogri-kalit',
+    });
+    check(
+      "karta: noto'g'ri kalit bilan qo'shish rad etiladi",
+      createBadSecret.status === 403,
+      `(${createBadSecret.status})`,
+    );
+
+    const cardA = await payoutCall('POST', '/payout-cards', {
+      body: cardBody('Verify Test A'),
+      secret: billingSecret,
+    });
+    check('karta A qo\'shildi', cardA.status === 200 && cardA.json?.data?.active === false, `(${cardA.status})`);
+
+    const cardB = await payoutCall('POST', '/payout-cards', {
+      body: cardBody('Verify Test B'),
+      secret: billingSecret,
+    });
+    check('karta B qo\'shildi', cardB.status === 200, `(${cardB.status})`);
+
+    const activateNoSecret = await payoutCall('POST', `/payout-cards/${cardB.json?.data?.id}/activate`);
+    check(
+      'karta: kalitsiz faollashtirish rad etiladi',
+      activateNoSecret.status === 403,
+      `(${activateNoSecret.status})`,
+    );
+
+    const activateB = await payoutCall('POST', `/payout-cards/${cardB.json?.data?.id}/activate`, {
+      secret: billingSecret,
+    });
+    check(
+      'karta B faollashdi',
+      activateB.status === 200 && activateB.json?.data?.active === true,
+      `(${activateB.status})`,
+    );
+
+    const afterActivate = await call('GET', '/payout-cards', { token: admin });
+    const rowA = afterActivate.json?.data?.find((row) => row.id === cardA.json?.data?.id);
+    const rowB = afterActivate.json?.data?.find((row) => row.id === cardB.json?.data?.id);
+    check(
+      'bitta provayderda faqat bitta faol karta',
+      rowA?.active === false && rowB?.active === true,
+      `(A=${rowA?.active}, B=${rowB?.active})`,
+    );
+
+    const removeActive = await payoutCall('DELETE', `/payout-cards/${cardB.json?.data?.id}`, {
+      secret: billingSecret,
+    });
+    check(
+      "karta: faol karta o'chirilmaydi",
+      removeActive.status === 409 && removeActive.json?._code === 'PAYOUT_CARD_ACTIVE_CANNOT_REMOVE',
+      `(${removeActive.status} ${removeActive.json?._code})`,
+    );
+
+    const removeInactive = await payoutCall('DELETE', `/payout-cards/${cardA.json?.data?.id}`, {
+      secret: billingSecret,
+    });
+    check("karta: nofaol karta o'chiriladi", removeInactive.status === 200, `(${removeInactive.status})`);
+
+    const cardAudit = await call('GET', '/audit?entity=payout_card&limit=5', { token: admin });
+    const auditEntry = cardAudit.json?.data?.find((row) => row.entityId === cardB.json?.data?.id);
+    check(
+      'jurnalga faqat last4 yoziladi',
+      Boolean(auditEntry) && Object.keys(auditEntry.diff ?? {}).every((key) => key === 'last4'),
+      JSON.stringify(auditEntry?.diff),
+    );
+  }
+
+  if (payoutViewerToken) {
+    const viewerSelf = await call('GET', '/auth/me', { token: payoutViewerToken });
+    if (viewerSelf.json?.data?.id) {
+      await call('DELETE', `/users/${viewerSelf.json.data.id}`, { token: admin }).catch(() => {});
+    }
+  }
 
   // ----------------------------------------------------------------- NATIJA
   console.log(`\n${'='.repeat(52)}`);
