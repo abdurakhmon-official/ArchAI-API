@@ -46,4 +46,8 @@ HEALTHCHECK --interval=60s --timeout=10s --start-period=30s --retries=3 \
   CMD node -e "process.exit(0)"
 
 ENTRYPOINT ["dumb-init", "--"]
-CMD ["node", "-r", "tsconfig-paths/register", "dist/worker/index.js"]
+# `tsc-alias` build paytida `@/` yo'llarini nisbiy yo'llarga aylantiradi,
+# ya'ni ish vaqtida `tsconfig-paths` kerak emas. Uni chaqirish esa
+# obrazda `tsconfig.json` yo'qligi haqida chalg'ituvchi ogohlantirish
+# chiqarardi.
+CMD ["node", "dist/worker/index.js"]
