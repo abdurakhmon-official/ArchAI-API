@@ -56,8 +56,13 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
 ENTRYPOINT ["dumb-init", "--"]
-# `tsc-alias` build paytida `@/` yo'llarini nisbiy yo'llarga aylantiradi,
-# ya'ni ish vaqtida `tsconfig-paths` kerak emas. Uni chaqirish esa
-# obrazda `tsconfig.json` yo'qligi haqida chalg'ituvchi ogohlantirish
-# chiqarardi.
-CMD ["node", "dist/index.js"]
+# Migrations run at boot, not in a platform-specific pre-deploy hook:
+# Render's free tier does not offer one, and keeping the step inside the
+# image means every host (Render, Fly, compose) behaves the same.
+#
+# `exec` matters — it hands the process over to node so dumb-init's
+# signals reach the server instead of stopping at the shell.
+#
+# `tsconfig-paths` is not loaded: `tsc-alias` already rewrote the `@/`
+# imports to relative paths at build time.
+CMD ["sh", "-c", "npx prisma migrate deploy && exec node dist/index.js"]
